@@ -5,6 +5,7 @@ import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import { parseAllDocuments, parseDocument } from "yaml";
+import { verifyImporterPins } from "./verify-lock.mjs";
 
 const root = new URL("../", import.meta.url);
 /** @param {string} path */
@@ -21,6 +22,12 @@ assert.equal(
 assert.match(manifest.packageManager, /^pnpm@\d+\.\d+\.\d+$/);
 assert.equal(manifest.engines.node, nodeVersion);
 assert.equal(manifest.engines.pnpm, manifest.packageManager.slice(5));
+const lockDocuments = parseAllDocuments(read("pnpm-lock.yaml"));
+for (const document of lockDocuments) assert.equal(document.errors.length, 0);
+verifyImporterPins(
+  lockDocuments.map((document) => document.toJSON()),
+  manifest,
+);
 const uvVersion = read("pyproject.toml").match(
   /^required-version = "==(.+)"$/m,
 )?.[1];
@@ -44,32 +51,12 @@ for (const [command, version] of [
     `Actual ${command} runtime`,
   );
 }
-const lockDocuments = parseAllDocuments(read("pnpm-lock.yaml"));
-for (const document of lockDocuments) assert.equal(document.errors.length, 0);
-const locks = lockDocuments.map((document) => document.toJSON());
-const lock = locks.find(
-  (document) => document.importers?.["."]?.devDependencies,
-);
-assert.ok(lock, "Dependency lock document");
-assert.ok(
-  locks.some(
-    (document) =>
-      document.importers?.["."]?.packageManagerDependencies?.pnpm?.specifier ===
-      manifest.packageManager.slice(5),
-  ),
-  "Locked pnpm version",
-);
 for (const [name, version] of Object.entries(manifest.devDependencies)) {
   assert.match(version, /^\d+\.\d+\.\d+$/, `${name} must have an exact pin`);
   assert.equal(
     require(`${name}/package.json`).version,
     version,
     `${name} installation`,
-  );
-  assert.equal(
-    lock.importers["."].devDependencies[name].specifier,
-    version,
-    `${name} lock`,
   );
 }
 assert.match(

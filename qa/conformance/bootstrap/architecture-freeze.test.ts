@@ -17,6 +17,36 @@ const references = [
   },
 ];
 
+// A finite explicit-phrase guard; documentation still needs human semantic review.
+function hasV2MutationAuthorizationClaim(text: string): boolean {
+  return [
+    /(?:spec(?:ification)?|architecture(?: freeze)?|approval)\s+(?:(?:hereby|explicitly|directly|also|now)\s+)*(?:authorizes?|permits?|allows?)\s+(?:(?:mutation|modification) (?:of|to) V2|changes? to V2|V2 (?:mutation|modification|changes?))/i,
+    /V2 (?:mutation|modification|changes?)\s+(?:is|are)\s+(?:authorized|permitted|allowed)\s+by\s+(?:the\s+)?(?:spec(?:ification)?|architecture|approval)/i,
+  ].some((pattern) => pattern.test(text.replace(/\*\*/g, "")));
+}
+
+test.each([
+  "The spec authorizes mutation of V2.",
+  "The specification permits mutation to V2.",
+  "The architecture freeze explicitly allows mutation of V2.",
+  "The approval authorizes V2 mutation.",
+  "The spec permits modification of V2.",
+  "The architecture allows changes to V2.",
+  "V2 mutation is authorized by the spec.",
+])("explicit_guard_rejects_affirmative_claim: %s", (text) => {
+  expect(hasV2MutationAuthorizationClaim(text)).toBe(true);
+});
+
+test.each([
+  "The spec does not authorize mutation of V2.",
+  "The architecture freeze does not authorize V2 mutation.",
+  "The approval never permits mutation to V2.",
+  "V2 mutation is not authorized by the spec.",
+  "V2 status: frozen, preserved, untouched.",
+])("explicit_guard_allows_negative_or_preservation_claim: %s", (text) => {
+  expect(hasV2MutationAuthorizationClaim(text)).toBe(false);
+});
+
 test("architecture_status_is_frozen_for_v3_only", () => {
   const path = resolve(architecture, "ARCHITECTURE_STATUS.md");
   expect(existsSync(path), "Missing architecture status index").toBe(true);
@@ -64,13 +94,10 @@ test("implementation_docs_do_not_authorize_v2_mutation", () => {
         immutableReferences.has(path)
       )
         continue;
-      const text = readFileSync(path, "utf8").replace(/\*\*/g, "");
-      expect(text, `V2 mutation authorization claim in ${path}`).not.toMatch(
-        /(?:spec(?:ification)?|architecture(?: freeze)?|approval)\s+(?:(?:hereby|explicitly|directly|also|now)\s+)*(?:authorizes?|permits?|allows?)\s+(?:modification (?:of|to) V2|changes? to V2|V2 (?:mutation|modification|changes?))/i,
-      );
-      expect(text, `V2 mutation authorization claim in ${path}`).not.toMatch(
-        /V2 (?:mutation|modification|changes?)\s+(?:is|are)\s+(?:authorized|permitted|allowed)\s+by\s+(?:the\s+)?(?:spec(?:ification)?|architecture|approval)/i,
-      );
+      expect(
+        hasV2MutationAuthorizationClaim(readFileSync(path, "utf8")),
+        `V2 mutation authorization claim in ${path}`,
+      ).toBe(false);
     }
   }
   checkDirectory(resolve(root, "docs"));
