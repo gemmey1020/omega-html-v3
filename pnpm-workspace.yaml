@@ -1,3 +1,19 @@
 packages:
   - packages/*
   - apps/*
+verifyDepsBeforeRun: false
+pmOnFail: error
+runtimeOnFail: error
+engineStrict: true
+saveExact: true
+minimumReleaseAgeStrict: true
+storeDir: .tools/pnpm-store
+cacheDir: .tools/pnpm-cache
+allowBuilds:
+  esbuild: true
+  sharp: true
+minimumReleaseAgeExclude:
+  - '@playwright/test@1.64.0'
+  - astro@7.3.8
+  - playwright-core@1.64.0
+  - playwright@1.64.0

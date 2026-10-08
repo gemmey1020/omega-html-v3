@@ -1,6 +1,14 @@
 {
+  "$schema": "https://biomejs.dev/schemas/2.5.15/schema.json",
   "files": {
-    "ignoreUnknown": true
+    "ignoreUnknown": true,
+    "includes": [
+      "**",
+      "!!.tools",
+      "!!.superpowers",
+      "!!node_modules",
+      "!!.venv"
+    ]
   },
   "formatter": {
     "enabled": true,
@@ -10,7 +18,7 @@
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": true
+      "preset": "recommended"
     }
   }
 }

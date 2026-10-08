@@ -7,3 +7,20 @@ dependencies = []
 
 [tool.uv]
 package = false
+required-version = "==0.12.23"
+
+[dependency-groups]
+dev = ["pytest==9.1.1", "ruff==0.16.10", "mypy==2.4.0"]
+
+[tool.pytest.ini_options]
+testpaths = ["qa/conformance/bootstrap"]
+addopts = "--strict-config --strict-markers"
+
+[tool.ruff]
+target-version = "py314"
+cache-dir = ".tools/ruff-cache"
+
+[tool.mypy]
+python_version = "3.14"
+strict = true
+cache_dir = ".tools/mypy-cache"

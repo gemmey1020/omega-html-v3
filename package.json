@@ -3,11 +3,28 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "packageManager": "pnpm@12.10.1",
+  "engines": {
+    "node": "24.21.0",
+    "pnpm": "12.10.1"
+  },
   "scripts": {
-    "test": "vitest --run"
+    "lint": "biome check .",
+    "typecheck": "tsc --project tsconfig.json",
+    "test": "vitest --run",
+    "toolchain": "node scripts/verify-toolchain.mjs",
+    "python:lint": "uv run --no-sync --offline ruff check qa/conformance/bootstrap",
+    "python:typecheck": "uv run --no-sync --offline mypy qa/conformance/bootstrap",
+    "python:test": "uv run --no-sync --offline pytest -q"
   },
   "devDependencies": {
-    "vitest": "3.2.4",
-    "yaml": "2.8.1"
+    "@biomejs/biome": "2.5.15",
+    "@playwright/test": "1.64.0",
+    "@types/node": "24.19.1",
+    "ajv": "8.20.0",
+    "astro": "7.3.8",
+    "typescript": "7.0.2",
+    "vitest": "5.0.3",
+    "yaml": "2.9.1"
   }
 }
