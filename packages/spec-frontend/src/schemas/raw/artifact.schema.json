@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omega.invalid/schemas/raw/artifact.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "document": {
+      "$ref": "https://omega.invalid/schemas/common/document.schema.json"
+    },
+    "sections": {
+      "type": "array",
+      "items": {
+        "$ref": "https://omega.invalid/schemas/common/section.schema.json"
+      }
+    },
+    "target": {
+      "type": "string",
+      "const": "standalone-html"
+    },
+    "presentation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "profile": {
+          "type": "string",
+          "enum": ["prime", "silver", "gold", "cyan"]
+        }
+      },
+      "required": ["profile"]
+    }
+  },
+  "required": ["document", "sections"]
+}

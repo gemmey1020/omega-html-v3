@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omega.invalid/schemas/common/prose.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "$ref": "https://omega.invalid/schemas/common/id.schema.json"
+    },
+    "kind": {
+      "type": "string",
+      "const": "prose"
+    },
+    "text": {
+      "type": "string"
+    }
+  },
+  "required": ["kind", "text"]
+}

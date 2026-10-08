@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omega.invalid/schemas/common/section.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "$ref": "https://omega.invalid/schemas/common/id.schema.json"
+    },
+    "intent": {
+      "$ref": "https://omega.invalid/schemas/common/id.schema.json"
+    },
+    "title": {
+      "type": ["string", "null"]
+    },
+    "body": {
+      "type": "string"
+    },
+    "content": {
+      "type": "array",
+      "items": {
+        "$ref": "https://omega.invalid/schemas/common/prose.schema.json"
+      }
+    },
+    "sections": {
+      "type": "array",
+      "items": {
+        "$ref": "https://omega.invalid/schemas/common/section.schema.json"
+      }
+    }
+  }
+}
