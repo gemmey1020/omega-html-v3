@@ -12,6 +12,7 @@
     "lint": "biome check .",
     "typecheck": "tsc --project tsconfig.json",
     "test": "vitest --run",
+    "verify": "bash scripts/verify.sh",
     "toolchain": "node scripts/verify-toolchain.mjs",
     "python:lint": "uv run --no-sync --offline ruff check qa/conformance/bootstrap",
     "python:typecheck": "uv run --no-sync --offline mypy qa/conformance/bootstrap",
