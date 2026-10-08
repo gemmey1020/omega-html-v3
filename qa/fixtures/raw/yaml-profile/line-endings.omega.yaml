@@ -1,0 +1,9 @@
+a: one
+b: two
+body: |
+  الحالة الحالية
+  ID.v3 يبقى كما هو.
+folded: >
+  سطر أول
+  سطر ثان
+escaped: "line\rbreak"

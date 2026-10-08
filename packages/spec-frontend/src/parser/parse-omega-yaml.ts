@@ -86,7 +86,11 @@ export function parseOmegaYaml(
   const lines = new LineCounter();
   lines.addNewLine(0);
   for (let offset = 0; offset < text.length; offset++) {
-    if (text[offset] === "\n") lines.addNewLine(offset + 1);
+    if (
+      text[offset] === "\n" ||
+      (text[offset] === "\r" && text[offset + 1] !== "\n")
+    )
+      lines.addNewLine(offset + 1);
   }
   function location(start: number, end: number): SourceLocation {
     const first = lines.linePos(start);
@@ -140,7 +144,10 @@ export function parseOmegaYaml(
       );
     }
   }
-  const tokens = [...new Parser().parse(text)];
+  // The pinned lexer needs LF for standalone CR syntax breaks. Substitution
+  // preserves UTF-16 offsets; CRLF and authored escape sequences stay intact.
+  const parserText = text.replace(/\r(?!\n)/g, "\n");
+  const tokens = [...new Parser().parse(parserText)];
   for (const token of tokens) {
     if (
       token.type === "directive" &&

@@ -376,3 +376,94 @@ test("turns_excessive_nesting_into_a_failed_parse_gate", () => {
     "OMEGA-PARSE-SYNTAX",
   );
 });
+
+test.each(["\n", "\r\n", "\r"])(
+  "keeps_line_ending_values_and_authoring_locations_%j",
+  (newline) => {
+    const source = fixture("line-endings").replaceAll("\n", newline);
+    for (const input of [source, new TextEncoder().encode(source)]) {
+      const result = parseOmegaYaml(input, "line-endings.omega.yaml");
+      expect(result.ok).toBe(true);
+      if (!result.ok) throw new Error("Expected supported YAML line endings");
+      expect(result.value).toEqual({
+        a: "one",
+        b: "two",
+        body: "الحالة الحالية\nID.v3 يبقى كما هو.\n",
+        folded: "سطر أول سطر ثان\n",
+        escaped: "line\rbreak",
+      });
+      expect(result.sourceMap.entries).toEqual([
+        {
+          path: "",
+          location: {
+            module: "line-endings.omega.yaml",
+            line: 1,
+            column: 1,
+            span: { endLine: 10, endColumn: 1 },
+          },
+        },
+        {
+          path: "/a",
+          location: {
+            module: "line-endings.omega.yaml",
+            line: 1,
+            column: 4,
+            span: { endLine: 1, endColumn: 7 },
+          },
+        },
+        {
+          path: "/b",
+          location: {
+            module: "line-endings.omega.yaml",
+            line: 2,
+            column: 4,
+            span: { endLine: 2, endColumn: 7 },
+          },
+        },
+        {
+          path: "/body",
+          location: {
+            module: "line-endings.omega.yaml",
+            line: 3,
+            column: 7,
+            span: { endLine: 6, endColumn: 1 },
+          },
+        },
+        {
+          path: "/folded",
+          location: {
+            module: "line-endings.omega.yaml",
+            line: 6,
+            column: 9,
+            span: { endLine: 9, endColumn: 1 },
+          },
+        },
+        {
+          path: "/escaped",
+          location: {
+            module: "line-endings.omega.yaml",
+            line: 9,
+            column: 10,
+            span: { endLine: 9, endColumn: 23 },
+          },
+        },
+      ]);
+      expect(result.diagnostics).toEqual([]);
+    }
+    const duplicate = parseOmegaYaml(
+      `a: first${newline}a: second${newline}`,
+      "line-endings.omega.yaml",
+    );
+    expect(duplicate.ok).toBe(false);
+    expect(
+      duplicate.diagnostics.find(
+        (diagnostic) => diagnostic.code === "OMEGA-PARSE-DUPLICATE-KEY",
+      )?.location,
+    ).toEqual({
+      module: "line-endings.omega.yaml",
+      line: 2,
+      column: 1,
+      span: { endLine: 2, endColumn: 2 },
+    });
+  },
+);
