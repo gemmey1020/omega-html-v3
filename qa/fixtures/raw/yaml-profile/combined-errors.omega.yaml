@@ -1,0 +1,7 @@
+profile: prime
+profile: cyan
+first: &shared value
+second: *shared
+custom: !custom value
+number: .inf
+unicode: "\uD800"

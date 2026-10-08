@@ -1,0 +1,2 @@
+first: &shared text
+second: *shared

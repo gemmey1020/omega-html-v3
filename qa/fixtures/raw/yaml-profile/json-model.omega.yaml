@@ -1,0 +1,14 @@
+%YAML 1.2
+---
+# JSON-compatible values, plain lookalikes stay strings
+values: [true, false, null, 12, -12, 0.1, 1e2, 0x10, 0o10, 9007199254740991, -9007199254740991, 2026-10-09, yes, "1:20", 1_000, "9007199254740993", ".nan"]
+absent: null
+empty:
+tagged:
+  string: !!str 12
+  integer: !!int 12
+  float: !!float 0.1
+  boolean: !!bool true
+  nil: !!null null
+  array: !!seq [1]
+  object: !!map {key: value}

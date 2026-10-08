@@ -1,0 +1,45 @@
+{
+  "nonprintables": [
+    {
+      "code": 0,
+      "source": "value: \u0000\n"
+    },
+    {
+      "code": 1,
+      "source": "value: \u0001\n"
+    },
+    {
+      "code": 8,
+      "source": "value: \b\n"
+    },
+    {
+      "code": 11,
+      "source": "value: \u000b\n"
+    },
+    {
+      "code": 12,
+      "source": "value: \f\n"
+    },
+    {
+      "code": 14,
+      "source": "value: \u000e\n"
+    },
+    {
+      "code": 31,
+      "source": "value: \u001f\n"
+    },
+    {
+      "code": 127,
+      "source": "value: \u007f\n"
+    },
+    {
+      "code": 128,
+      "source": "value: \u0080\n"
+    },
+    {
+      "code": 159,
+      "source": "value: \u009f\n"
+    }
+  ],
+  "unicode": "a: first\na: second\nb: \ud800\n"
+}

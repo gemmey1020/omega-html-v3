@@ -7,7 +7,8 @@ import type { Diagnostic, LogicalModuleId, SourceMap } from "./diagnostics.js";
 
 export interface CompilerSource {
   readonly module: LogicalModuleId;
-  readonly text: string;
+  /** Bytes are decoded strictly as UTF-8 by the parse stage. */
+  readonly text: string | Uint8Array;
 }
 
 /** Raw schema is read from source's omega.schema, never silently migrated. */
