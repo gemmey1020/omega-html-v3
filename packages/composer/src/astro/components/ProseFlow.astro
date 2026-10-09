@@ -1,0 +1,18 @@
+---
+// biome-ignore-all lint/correctness/noUnusedVariables lint/correctness/noUnusedImports: Astro template references are outside Biome frontmatter analysis.
+import type { RichTextBlock } from "@omega/contracts";
+import InlineContent from "./InlineContent.astro";
+
+interface Props {
+  blocks: readonly RichTextBlock[];
+  tight?: boolean;
+}
+const { blocks, tight = false } = Astro.props;
+---
+{blocks.map((block) => (
+  block.kind === "paragraph" ? (tight ? <InlineContent nodes={block.children} /> : <p><InlineContent nodes={block.children} /></p>) :
+  block.kind === "blockquote" ? <blockquote><Astro.self blocks={block.blocks} /></blockquote> :
+  block.kind === "bullet-list" ? <ul>{block.items.map((item) => <li><Astro.self blocks={item.blocks} tight={block.tight} /></li>)}</ul> :
+  block.kind === "ordered-list" ? <ol start={block.start}>{block.items.map((item) => <li><Astro.self blocks={item.blocks} tight={block.tight} /></li>)}</ol> :
+  block.kind === "code-block" ? <pre dir="ltr"><code data-info={block.info}>{block.value}</code></pre> : <hr />
+))}

@@ -197,13 +197,43 @@ importers:
         specifier: workspace:*
         version: link:../spec-frontend
 
+  packages/composer:
+    dependencies:
+      '@omega/capability-registry':
+        specifier: workspace:*
+        version: link:../capability-registry
+      '@omega/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@omega/design-system':
+        specifier: workspace:*
+        version: link:../design-system
+      '@omega/presentation-engine':
+        specifier: workspace:*
+        version: link:../presentation-engine
+      astro:
+        specifier: 7.3.8
+        version: 7.3.8(@types/node@24.19.1)(yaml@2.9.1)
+      vite:
+        specifier: 8.3.3
+        version: 8.3.3(@types/node@24.19.1)(yaml@2.9.1)
+    devDependencies:
+      '@omega/spec-frontend':
+        specifier: workspace:*
+        version: link:../spec-frontend
+
   packages/contracts: {}
+
+  packages/design-system: {}
 
   packages/engine:
     dependencies:
       '@omega/capability-registry':
         specifier: workspace:*
         version: link:../capability-registry
+      '@omega/composer':
+        specifier: workspace:*
+        version: link:../composer
       '@omega/contracts':
         specifier: workspace:*
         version: link:../contracts

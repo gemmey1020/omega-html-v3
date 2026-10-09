@@ -1,0 +1,24 @@
+{
+  "name": "@omega/composer",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest --run",
+    "typecheck": "tsc --project tsconfig.json"
+  },
+  "dependencies": {
+    "@omega/capability-registry": "workspace:*",
+    "@omega/contracts": "workspace:*",
+    "@omega/design-system": "workspace:*",
+    "@omega/presentation-engine": "workspace:*",
+    "astro": "7.3.8",
+    "vite": "8.3.3"
+  },
+  "devDependencies": {
+    "@omega/spec-frontend": "workspace:*"
+  }
+}

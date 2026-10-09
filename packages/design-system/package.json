@@ -1,0 +1,10 @@
+{
+  "name": "@omega/design-system",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./tokens/prime.css": "./src/tokens/prime.css",
+    "./foundations/base.css": "./src/foundations/base.css"
+  }
+}

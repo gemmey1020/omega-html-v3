@@ -1,0 +1,28 @@
+/* biome-ignore-all format: Frozen section 46 token lexemes. */
+:root {
+--bg:#0f151d;
+--bg-deep:#0b1118;
+--surface:#151d27;
+--surface-2:#1b222b;
+--surface-3:#212f3f;
+--line:#283a48;
+--line-soft:#223543;
+--text:#eef6fb;
+--muted:#8da7b5;
+--dim:#64818d;
+--cyan:#29e3e8;
+--blue:#66a6ff;
+--sand:#cab28a;
+--green:#45caa0;
+--warn:#d9bd74;
+--danger:#d97868;
+--brand:linear-gradient(135deg,#29e3e8 0%,#66a6ff 56%,#cab28a 100%);
+--brand-soft:linear-gradient(135deg,rgba(41,227,232,.13),rgba(102,166,255,.08) 56%,rgba(202,178,138,.15));
+--brand-field:radial-gradient(80% 120% at 0% 0%,rgba(41,227,232,.13),transparent 55%),radial-gradient(75% 120% at 100% 0%,rgba(202,178,138,.11),transparent 60%);
+--r-xl:28px;
+--r-lg:22px;
+--r-md:16px;
+--r-sm:12px;
+--sans:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI","Noto Sans Arabic",Arial,sans-serif;
+--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}

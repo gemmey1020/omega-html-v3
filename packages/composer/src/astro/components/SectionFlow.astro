@@ -1,0 +1,22 @@
+---
+// biome-ignore-all lint/correctness/noUnusedVariables lint/correctness/noUnusedImports: Astro template references are outside Biome frontmatter analysis.
+import type { PlannedSection } from "@omega/presentation-engine";
+import ProseFlow from "./ProseFlow.astro";
+
+interface Props {
+  section: PlannedSection;
+  ancestors: readonly string[];
+  level: number;
+}
+const { section, ancestors, level } = Astro.props;
+const scope = [...ancestors, section.id];
+// Length-prefix each Canonical local ID; delimiters inside IDs cannot collide.
+const anchor = `omega-section-${scope.map((id) => `${id.length}-${id}`).join("-")}`;
+const headingId = `${anchor}-title`;
+const Heading = level <= 6 ? `h${level}` : "div";
+---
+<section id={anchor} data-canonical-id={section.id} aria-labelledby={section.title === null ? undefined : headingId}>
+  {section.title !== null && <Heading id={headingId} role={level > 6 ? "heading" : undefined} aria-level={level > 6 ? level : undefined}>{section.title}</Heading>}
+  {section.content.map((block) => <div class="prose" data-canonical-id={block.id}><ProseFlow blocks={block.text.blocks} /></div>)}
+  {section.sections.map((child) => <Astro.self section={child} ancestors={scope} level={level + 1} />)}
+</section>

@@ -7,6 +7,7 @@ import { OmegaEngine } from "../src/api/engine.js";
 import type { CapabilitySnapshot, EngineFailure } from "../src/api/types.js";
 import type { EngineAdapters, StageResult } from "../src/lifecycle/stages.js";
 import { planFixture } from "./plan-fixture.js";
+import { renderFixture } from "./render-fixture.js";
 
 const source = {
   module: "fixture.omega.yaml",
@@ -76,7 +77,7 @@ function shellAdapters(calls: string[] = []): EngineAdapters {
       expect(input.plan.representation).toBe(
         "omega.core.editorial.prose-flow@1",
       );
-      return succeeded({ html: "<article>Test only</article>" });
+      return succeeded(renderFixture("<article>Test only</article>"));
     },
     package: (input) => {
       calls.push("package");

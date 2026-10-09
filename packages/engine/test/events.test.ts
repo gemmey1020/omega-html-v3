@@ -14,6 +14,7 @@ import type {
 } from "../src/lifecycle/stages.js";
 import { LIFECYCLE_STAGES } from "../src/lifecycle/stages.js";
 import { planFixture } from "./plan-fixture.js";
+import { renderFixture } from "./render-fixture.js";
 
 const source = {
   module: "events.omega.yaml",
@@ -29,7 +30,7 @@ function shell(calls: string[]): EngineAdapters {
   return {
     semantic: () => succeeded({ eligible: true }),
     plan: (input) => succeeded(planFixture(input.compiled.canonical)),
-    render: () => succeeded({ html: "<article>Running.</article>" }),
+    render: () => succeeded(renderFixture("<article>Running.</article>")),
     package: () => {
       calls.push("package");
       return succeeded({ candidate: "test-only" });
@@ -64,7 +65,7 @@ test("cancelled_build_never_commits_candidate", async () => {
           once: true,
         }),
       );
-      return succeeded({ html: "uncommitted" });
+      return succeeded(renderFixture("uncommitted"));
     },
   });
   const pending = engine.build(
@@ -340,7 +341,7 @@ test("active_renderer_receives_signal_and_abort_exception_is_cancelled", async (
           { once: true },
         ),
       );
-      return succeeded({ html: "unreachable" });
+      return succeeded(renderFixture("unreachable"));
     },
   }).build(
     { operation: "build", source },
@@ -484,7 +485,7 @@ test("adapter_events_inherit_stage_correlation_and_cannot_emit_a_terminal", asyn
       context.emit({ name: "stage.progress", completed: 1, total: 2 });
       context.emit({ name: "cache.miss", actionKey: "stable-action" });
       context.emit({ name: "cache.hit", actionKey: "stable-action" });
-      return succeeded({ html: "rendered" });
+      return succeeded(renderFixture("rendered"));
     },
   });
   expect(
@@ -579,7 +580,7 @@ test("non_commit_stage_cannot_publish_or_seal_cancellation", async () => {
         calls.push("publish");
         return { finalArtifactPath: "test-only.html" };
       });
-      return succeeded({ html: "must not render" });
+      return succeeded(renderFixture("must not render"));
     },
   }).build({ operation: "build", source });
   expect(result).toMatchObject({
@@ -739,7 +740,7 @@ test("concurrent_attempts_have_distinct_correlation_and_independent_cancellation
         cancellation.cancel();
         throwIfCancellationRequested(context.cancellationToken);
       }
-      return succeeded({ html: "static" });
+      return succeeded(renderFixture("static"));
     },
   });
   const [cancelled, successful] = await Promise.all([
@@ -823,7 +824,7 @@ test("adapter_cannot_forge_lifecycle_terminal_events", async () => {
     render: (_input, context) => {
       // Simulate an untyped trusted adapter passing an unsupported payload.
       context.emit({ name: "build.completed", status: "succeeded" } as never);
-      return succeeded({ html: "unreachable" });
+      return succeeded(renderFixture("unreachable"));
     },
   }).build(
     { operation: "build", source },

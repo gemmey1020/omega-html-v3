@@ -1,0 +1,30 @@
+---
+// biome-ignore-all lint/correctness/noUnusedVariables lint/correctness/noUnusedImports: Astro template references are outside Biome frontmatter analysis.
+import baseStyles from "@omega/design-system/foundations/base.css?raw";
+import primeTokens from "@omega/design-system/tokens/prime.css?raw";
+import type { MinimalRenderPlan } from "@omega/presentation-engine";
+import SectionFlow from "../components/SectionFlow.astro";
+
+interface Props {
+  plan: MinimalRenderPlan;
+}
+const { plan } = Astro.props;
+---
+<!doctype html>
+<html lang={plan.document.language} dir={plan.document.direction}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{plan.document.title}</title>
+    <!-- Only trusted repository CSS enters set:html. Authored AST uses escaped expressions. -->
+    <style is:inline set:html={primeTokens + "\n" + baseStyles} />
+  </head>
+  <body>
+    <main>
+      <article aria-labelledby="omega-document-title" data-canonical-id={plan.metadata.id}>
+        <header class="document-header"><h1 id="omega-document-title">{plan.document.title}</h1></header>
+        {plan.sections.map((section) => <SectionFlow section={section} ancestors={[plan.metadata.id]} level={2} />)}
+      </article>
+    </main>
+  </body>
+</html>
