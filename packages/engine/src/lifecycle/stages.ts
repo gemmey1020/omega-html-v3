@@ -20,6 +20,8 @@ import type {
   SemanticInput,
   VerifiedInput,
 } from "../api/types.js";
+import type { EventCorrelation, StageEventPayload } from "../events/events.js";
+import type { CancellationToken } from "./cancellation.js";
 
 export const LIFECYCLE_STAGES = Object.freeze([
   "preflight",
@@ -48,11 +50,25 @@ export type StageResult<T> =
     };
 export type StageAdapter<I, O> = (
   input: I,
+  context: StageContext,
 ) => StageResult<O> | Promise<StageResult<O>>;
+
+/** Trusted execution seam; never clone/serialize this into deterministic data. */
+export interface StageContext extends EventCorrelation {
+  readonly stage: import("../api/types.js").EngineStage;
+  readonly cancellationToken: CancellationToken;
+  readonly emit: (event: StageEventPayload) => void;
+  /** Commit only: check cancellation, publish synchronously, then seal success. */
+  readonly publishCommit: (
+    publication: () => CommittedArtifact,
+  ) => CommittedArtifact;
+}
 
 /** Optional installation; absent production stages fail instead of faking QA. */
 export interface EngineAdapters {
-  readonly capabilities?: () =>
+  readonly capabilities?: (
+    context: StageContext,
+  ) =>
     | StageResult<CapabilitySnapshot>
     | Promise<StageResult<CapabilitySnapshot>>;
   readonly preflight?: StageAdapter<PreflightInput, null>;

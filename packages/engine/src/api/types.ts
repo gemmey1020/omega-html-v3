@@ -97,7 +97,7 @@ export type EngineRequest =
 
 export interface StageOutcome {
   readonly stage: EngineStage;
-  readonly status: "succeeded" | "failed";
+  readonly status: "succeeded" | "failed" | "cancelled";
 }
 interface ResultBase<O extends EngineOperation> {
   readonly operation: O;
@@ -108,6 +108,13 @@ export interface EngineFailure<O extends EngineOperation = EngineOperation>
   extends ResultBase<O> {
   readonly status: "failed";
   readonly failureClass: FailureClass;
+  readonly stage: EngineStage;
+  /** A trusted adapter failed after publication; output was not rolled back. */
+  readonly publication?: "committed";
+}
+export interface EngineCancelled<O extends EngineOperation = EngineOperation>
+  extends ResultBase<O> {
+  readonly status: "cancelled";
   readonly stage: EngineStage;
 }
 export interface EngineSnapshot {
@@ -122,28 +129,35 @@ export interface EngineSuccess<O extends EngineOperation, V>
 }
 export type ValidateResult =
   | EngineSuccess<"validate", EngineSnapshot>
-  | EngineFailure<"validate">;
+  | EngineFailure<"validate">
+  | EngineCancelled<"validate">;
 export type InspectResult =
   | EngineSuccess<"inspect", EngineSnapshot>
-  | EngineFailure<"inspect">;
+  | EngineFailure<"inspect">
+  | EngineCancelled<"inspect">;
 export interface PlannedSnapshot extends EngineSnapshot {
   readonly plan: RenderPlan;
 }
 export type PlanResult =
   | EngineSuccess<"plan", PlannedSnapshot>
-  | EngineFailure<"plan">;
+  | EngineFailure<"plan">
+  | EngineCancelled<"plan">;
 export type BuildResult =
   | EngineSuccess<"build", PlannedSnapshot & CommittedArtifact>
-  | EngineFailure<"build">;
+  | EngineFailure<"build">
+  | EngineCancelled<"build">;
 export type ExplainResult =
   | EngineSuccess<"explain", DecisionExplanation>
-  | EngineFailure<"explain">;
+  | EngineFailure<"explain">
+  | EngineCancelled<"explain">;
 export type MigrateResult =
   | EngineSuccess<"migrate", Extract<MigrationResult, { ok: true }>>
-  | EngineFailure<"migrate">;
+  | EngineFailure<"migrate">
+  | EngineCancelled<"migrate">;
 export type CapabilitiesResult =
   | EngineSuccess<"capabilities", CapabilitySnapshot>
-  | EngineFailure<"capabilities">;
+  | EngineFailure<"capabilities">
+  | EngineCancelled<"capabilities">;
 export type EngineResult =
   | ValidateResult
   | PlanResult
