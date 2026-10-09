@@ -1,9 +1,12 @@
 import { canonicalizeJson, sha256 } from "@omega/spec-frontend";
 import type { AcceptedInput } from "../api/types.js";
 import { P02_ACCEPTANCE_POLICY } from "../api/types.js";
+import type { BuildImplementationIdentity } from "../cache/action.js";
 export interface BuildReceipt {
   readonly version: "omega-build-receipt/1";
   readonly receiptId: string;
+  /** Absent only on historical Task6 receipts; all new production receipts include it. */
+  readonly implementation?: BuildImplementationIdentity;
   readonly engineVersion: string;
   readonly rawSchemaVersion: string;
   readonly canonicalContractVersion: string;
@@ -28,10 +31,14 @@ export interface CommittedArtifact {
   readonly finalReceiptPath: string;
   readonly receipt: BuildReceipt;
 }
-export function createBuildReceipt(input: AcceptedInput): BuildReceipt {
+export function createBuildReceipt(
+  input: AcceptedInput,
+  implementation: BuildImplementationIdentity,
+): BuildReceipt {
   const data = {
     version: "omega-build-receipt/1" as const,
     ...input.versions,
+    implementation,
     rawSourceHash: input.compiled.rawSourceHash,
     normalizedHash: input.compiled.normalizedHash,
     planHash: input.plan.planHash,
@@ -42,6 +49,7 @@ export function createBuildReceipt(input: AcceptedInput): BuildReceipt {
         rendererVersion: input.candidate.rendererVersion,
         tokenVersion: input.candidate.tokenVersion,
         policy: P02_ACCEPTANCE_POLICY,
+        implementation,
       }),
     ),
     artifactHash: input.candidate.artifactHash,
@@ -116,6 +124,38 @@ export function isMatchingBuildReceipt(
       return false;
     if (stage === "acceptance" && data.acceptance !== "ACCEPTED") return false;
   }
+  if (record.implementation !== undefined) {
+    if (
+      !record.implementation ||
+      typeof record.implementation !== "object" ||
+      Array.isArray(record.implementation)
+    )
+      return false;
+    const identity = record.implementation as Record<string, unknown>;
+    if (
+      identity.version !== "omega-source-identity/1" ||
+      Object.keys(identity).sort().join(",") !==
+        "sourceContentHash,toolchainHash,version" ||
+      ![identity.sourceContentHash, identity.toolchainHash].every(
+        (hash) => typeof hash === "string" && /^[a-f0-9]{64}$/.test(hash),
+      )
+    )
+      return false;
+    if (
+      record.buildFingerprint !==
+      sha256(
+        canonicalizeJson({
+          planHash: record.planHash,
+          rendererVersion: record.rendererVersion,
+          tokenVersion: record.tokenVersion,
+          policy: P02_ACCEPTANCE_POLICY,
+          implementation: identity,
+        }),
+      )
+    )
+      return false;
+  }
+  // Historical integrity never compares old source identity with the currently running implementation.
   const { receiptId, ...body } = record;
   return receiptId === sha256(canonicalizeJson(body));
 }

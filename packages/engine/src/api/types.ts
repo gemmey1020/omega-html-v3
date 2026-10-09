@@ -66,6 +66,7 @@ export interface ExecutionSettings {
   readonly diagnostics?: "normal" | "full";
   readonly cache?: "use" | "refresh" | "off";
   readonly outputDirectory?: string;
+  readonly cacheDirectory?: string;
 }
 
 interface SourceRequest<O extends EngineOperation> {

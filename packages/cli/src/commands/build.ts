@@ -4,7 +4,10 @@ export function build(context: CommandContext) {
     {
       operation: "build",
       source: context.source,
-      settings: { outputDirectory: context.output ?? "dist" },
+      settings: {
+        ...context.settings,
+        outputDirectory: context.output ?? "dist",
+      },
     },
     context.control,
   );

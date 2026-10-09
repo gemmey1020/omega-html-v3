@@ -1,6 +1,10 @@
 import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
-import type { EngineResult, ExecutionControl } from "@omega/engine";
+import type {
+  EngineResult,
+  ExecutionControl,
+  ExecutionSettings,
+} from "@omega/engine";
 import { CancellationTokenSource, createProductionEngine } from "@omega/engine";
 import { build } from "./commands/build.js";
 import { capabilities } from "./commands/capabilities.js";
@@ -33,6 +37,8 @@ export async function main(args: readonly string[]): Promise<number> {
   let sourcePath: string | undefined;
   let output: string | undefined;
   let targetVersion: string | undefined;
+  let cache: ExecutionSettings["cache"];
+  let diagnostics: ExecutionSettings["diagnostics"];
   let json = false;
   let events = false;
   const usage = () => {
@@ -49,6 +55,15 @@ export async function main(args: readonly string[]): Promise<number> {
     else if (arg === "--output" && command === "build") {
       output = args[++index];
       if (!output || output.startsWith("--")) return usage();
+    } else if (arg === "--cache" && command === "build") {
+      const value = args[++index];
+      if (value !== "use" && value !== "refresh" && value !== "off")
+        return usage();
+      cache = value;
+    } else if (arg === "--diagnostics" && command === "build") {
+      const value = args[++index];
+      if (value !== "normal" && value !== "full") return usage();
+      diagnostics = value;
     } else if (arg === "--target" && command === "migrate") {
       targetVersion = args[++index];
       if (!targetVersion || targetVersion.startsWith("--")) return usage();
@@ -118,6 +133,10 @@ export async function main(args: readonly string[]): Promise<number> {
       control,
       source,
       ...(output ? { output } : {}),
+      settings: {
+        ...(cache ? { cache } : {}),
+        ...(diagnostics ? { diagnostics } : {}),
+      },
       ...(targetVersion ? { targetVersion } : {}),
     };
     const result = await commands[command as keyof typeof commands](context);

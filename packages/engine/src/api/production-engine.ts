@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { rm } from "node:fs/promises";
 import { join } from "node:path";
 import { createMinimalCapabilityRegistry } from "@omega/capability-registry";
 import {
@@ -7,25 +7,45 @@ import {
   renderPrimeProse,
 } from "@omega/composer";
 import { createMinimalPlan } from "@omega/presentation-engine";
+import { canonicalizeJson } from "@omega/spec-frontend";
+import {
+  type BuildImplementationIdentity,
+  createBuildAction,
+  currentImplementationIdentity,
+} from "../cache/action.js";
+import { StageCacheStore } from "../cache/store.js";
+import {
+  retainIntermediates,
+  writeIntermediates,
+} from "../diagnostics/intermediates.js";
 import type { ExecutionControl } from "../events/events.js";
 import type { PreparedPublication } from "../lifecycle/atomic-commit.js";
 import {
+  admitDirectory,
   admitOutput,
   OutputAdmissionError,
   preparePublication,
 } from "../lifecycle/atomic-commit.js";
 import { throwIfCancellationRequested } from "../lifecycle/cancellation.js";
-import type { EngineAdapters, StageResult } from "../lifecycle/stages.js";
+import type {
+  EngineAdapters,
+  StageContext,
+  StageResult,
+} from "../lifecycle/stages.js";
 import { evidence, verifyArtifact } from "../qa/artifact-gates.js";
 import type { GateEvidence } from "../qa/types.js";
 import { createBuildReceipt } from "../receipts/build-receipt.js";
+import { BuildWorkspace } from "../workspace/build-workspace.js";
 import { OmegaEngine } from "./engine.js";
 import type {
   ArtifactCandidate,
   BuildRequest,
   BuildResult,
   EngineStage,
+  ExecutionSettings,
+  RenderOutput,
 } from "./types.js";
+import { P02_ACCEPTANCE_POLICY } from "./types.js";
 
 function success<T>(value: T): StageResult<T> {
   return { status: "succeeded", value };
@@ -51,6 +71,24 @@ function gateResult(value: GateEvidence): StageResult<GateEvidence> {
         "Candidate did not satisfy the scoped P02 policy.",
       )
     : success(value);
+}
+function isRenderOutput(value: unknown): value is RenderOutput {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const data = value as Record<string, unknown>;
+  return (
+    Object.keys(data).sort().join(",") ===
+      "assetDependencies,html,implementedFallbacks,renderer,rendererVersion,runtimeDependencies,tokenVersion" &&
+    typeof data.html === "string" &&
+    data.renderer === "astro-static/1" &&
+    data.rendererVersion === "omega-prime-prose/1" &&
+    data.tokenVersion === "omega-prime-tokens/1" &&
+    Array.isArray(data.runtimeDependencies) &&
+    data.runtimeDependencies.length === 0 &&
+    Array.isArray(data.assetDependencies) &&
+    data.assetDependencies.length === 0 &&
+    canonicalizeJson(data.implementedFallbacks) ===
+      '["no-js","reflow","print","forced-colors","reduced-motion"]'
+  );
 }
 function realAdapters(): EngineAdapters {
   return {
@@ -176,7 +214,55 @@ class ProductionEngine extends OmegaEngine {
     control: ExecutionControl = {},
   ): Promise<BuildResult> {
     let root: string | undefined;
-    let workspace: string | undefined;
+    let workspace: BuildWorkspace | undefined;
+    let cache: StageCacheStore | undefined;
+    let identity: BuildImplementationIdentity | undefined;
+    let diagnosticRoot: string | undefined;
+    let intermediates: string | undefined;
+    let retainedDiagnostics: string | undefined;
+    let settings: ExecutionSettings = {};
+    const defaults = realAdapters();
+    const cached = async <T>(
+      stage: "plan" | "render",
+      inputs: Readonly<Record<string, string>>,
+      capabilities: string,
+      context: StageContext,
+      produce: () => Promise<StageResult<T>> | StageResult<T>,
+      validate: (value: unknown) => value is T,
+    ): Promise<StageResult<T>> => {
+      if (!identity) throw new Error("Implementation identity missing");
+      if (settings.cache === "off") return produce();
+      if (!cache) throw new Error("Stage cache missing");
+      const action = createBuildAction({
+        stage,
+        inputs,
+        implementation: identity.sourceContentHash,
+        toolchain: identity.toolchainHash,
+        policy: P02_ACCEPTANCE_POLICY,
+        capabilities,
+        resources: [],
+      });
+      if (settings.cache !== "refresh") {
+        const hit = await cache.read(action, validate);
+        if (hit !== undefined) {
+          context.emit({ name: "cache.hit", actionKey: action.key });
+          return success(hit);
+        }
+      }
+      context.emit({ name: "cache.miss", actionKey: action.key });
+      const result = await produce();
+      if (result.status === "succeeded")
+        await cache.write(action, result.value, validate, () => {
+          context.emit({
+            name: "stage.progress",
+            completed: 1,
+            total: 1,
+            message: "Cache entry prepared.",
+          });
+          throwIfCancellationRequested(context.cancellationToken);
+        });
+      return result;
+    };
     let candidate: ArtifactCandidate | undefined;
     let publication: PreparedPublication | undefined;
     const clean = async () => {
@@ -185,16 +271,52 @@ class ProductionEngine extends OmegaEngine {
         candidate = undefined;
       }
       if (workspace) {
-        await rm(workspace, { recursive: true, force: true });
+        await workspace.cleanup();
         workspace = undefined;
       }
     };
     const adapters: EngineAdapters = {
-      ...realAdapters(),
+      ...defaults,
       ...this.options.stages,
+      plan: async (input, context) => {
+        // Recompute cheap planning admission to validate the complete persisted DTO.
+        const current = await defaults.plan?.(input, context);
+        if (!current) throw new Error("Plan adapter missing");
+        if (current.status === "failed") return current;
+        return cached(
+          "plan",
+          {
+            normalizedHash: input.compiled.normalizedHash,
+            engineVersion: input.versions.engineVersion,
+            canonicalContractVersion: input.versions.canonicalContractVersion,
+          },
+          input.capabilities.snapshotHash,
+          context,
+          () => current,
+          (value: unknown): value is typeof current.value =>
+            canonicalizeJson(value) === canonicalizeJson(current.value),
+        );
+      },
+      render: (input, context) =>
+        cached(
+          "render",
+          { planHash: input.plan.planHash },
+          input.capabilities.snapshotHash,
+          context,
+          async () => {
+            const result = await defaults.render?.(input, context);
+            if (!result) throw new Error("Render adapter missing");
+            return result;
+          },
+          isRenderOutput,
+        ),
       disposeUncommitted: async () => {
         await clean();
         await publication?.discard();
+        if (retainedDiagnostics) {
+          await rm(retainedDiagnostics, { recursive: true, force: true });
+          retainedDiagnostics = undefined;
+        }
       },
       preflight: async (input) => {
         if (!input.settings.outputDirectory)
@@ -205,7 +327,18 @@ class ProductionEngine extends OmegaEngine {
           );
         try {
           root = await admitOutput(input.settings.outputDirectory);
-          workspace = await mkdtemp(join(root, ".omega-workspace-"));
+          settings = input.settings;
+          identity = await currentImplementationIdentity();
+          if (settings.cache !== "off")
+            cache = await StageCacheStore.open(
+              settings.cacheDirectory ?? join(root, ".omega-cache"),
+            );
+          if (settings.diagnostics === "full")
+            diagnosticRoot = await admitDirectory(
+              join(root, ".omega-diagnostics"),
+              true,
+            );
+          workspace = await BuildWorkspace.create(root);
           return success(null);
         } catch (error) {
           if (error instanceof OutputAdmissionError)
@@ -219,8 +352,17 @@ class ProductionEngine extends OmegaEngine {
       },
       package: async (input, context) => {
         if (!workspace) throw new Error("Workspace missing");
+        if (diagnosticRoot) {
+          if (!identity) throw new Error("Implementation identity missing");
+          intermediates = await writeIntermediates(
+            workspace.directory,
+            input,
+            identity,
+          );
+          throwIfCancellationRequested(context.cancellationToken);
+        }
         const result = await packageStandaloneHtml(
-          { rendered: input.rendered, temporaryRoot: workspace },
+          { rendered: input.rendered, temporaryRoot: workspace.directory },
           {
             signal: context.cancellationToken.signal,
             checkCancellation: () =>
@@ -238,8 +380,14 @@ class ProductionEngine extends OmegaEngine {
       },
       commit: async (input, context) => {
         if (!root) throw new Error("Output missing");
-        const receipt = createBuildReceipt(input);
+        if (!identity) throw new Error("Implementation identity missing");
+        const receipt = createBuildReceipt(input, identity);
         publication = await preparePublication(root, input.candidate, receipt);
+        if (intermediates && diagnosticRoot)
+          retainedDiagnostics = await retainIntermediates(
+            intermediates,
+            diagnosticRoot,
+          );
         await clean();
         // All asynchronous/fallible preparation precedes this final synchronous boundary.
         const prepared = publication;

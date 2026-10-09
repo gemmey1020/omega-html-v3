@@ -276,3 +276,71 @@ process.on=function(name,listener){
     await rm(root, { recursive: true, force: true });
   }
 }, 120000);
+
+test("cli_cache_and_diagnostics_modes_reuse_stages_with_fresh_qa_and_identical_bytes", async () => {
+  const root = await mkdtemp(join(tmpdir(), "omega-cli-cache-t7-"));
+  try {
+    const source = join(root, "fixture.omega.yaml");
+    const out = join(root, "dist");
+    await writeFile(source, valid);
+    let acceptedBytes: Buffer | undefined;
+    let fingerprint: string | undefined;
+    for (const [mode, diagnostics, expected] of [
+      ["off", "normal", []],
+      ["use", "normal", ["cache.miss", "cache.miss"]],
+      ["use", "full", ["cache.hit", "cache.hit"]],
+      ["refresh", "normal", ["cache.miss", "cache.miss"]],
+    ] as const) {
+      const result = await cli([
+        "build",
+        source,
+        "--output",
+        out,
+        "--cache",
+        mode,
+        "--diagnostics",
+        diagnostics,
+        "--events=jsonl",
+      ]);
+      expect(result.code).toBe(0);
+      expect(result.stderr).toBe("");
+      const records = result.stdout
+        .trim()
+        .split("\n")
+        .map((line) => JSON.parse(line));
+      const events = records
+        .filter((record) => record.type === "event")
+        .map((record) => record.event);
+      expect(
+        events
+          .filter((event) => event.name.startsWith("cache."))
+          .map((event) => event.name),
+      ).toEqual(expected);
+      expect(
+        events.filter((event) => event.name === "qa.completed"),
+      ).toHaveLength(4);
+      const value = records.at(-1).result.value;
+      const bytes = await readFile(value.finalArtifactPath);
+      if (!acceptedBytes) {
+        acceptedBytes = bytes;
+        fingerprint = value.receipt.buildFingerprint;
+      }
+      expect(bytes).toEqual(acceptedBytes);
+      expect(value.receipt.buildFingerprint).toBe(fingerprint);
+      expect(value.receipt.implementation.sourceContentHash).toMatch(
+        /^[a-f0-9]{64}$/,
+      );
+    }
+    expect(await readdir(join(out, ".omega-diagnostics"))).toHaveLength(1);
+    for (const args of [
+      ["--cache", "invalid"],
+      ["--diagnostics", "invalid"],
+      ["--cache"],
+      ["--diagnostics"],
+    ])
+      expect((await cli(["build", source, ...args])).code).toBe(2);
+    expect((await cli(["validate", source, "--cache", "use"])).code).toBe(2);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+}, 120000);
