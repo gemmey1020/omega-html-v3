@@ -1,6 +1,8 @@
 export * from "./canonical/canonicalize.js";
 export * from "./canonical/hash.js";
 export * from "./compile.js";
+export * from "./migrations/migrate.js";
+export * from "./migrations/registry.js";
 export * from "./normalizer/ids.js";
 export * from "./normalizer/pipeline.js";
 export type { NormalizationContext } from "./normalizer/text.js";

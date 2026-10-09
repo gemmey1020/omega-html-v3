@@ -19,6 +19,7 @@ export interface SourceLocation {
 export type CompilerStage =
   | "parse"
   | "raw-validation"
+  | "migration"
   | "resolution"
   | "normalize"
   | "ids"
