@@ -6,6 +6,7 @@ import { expect, test } from "vitest";
 import { OmegaEngine } from "../src/api/engine.js";
 import type { CapabilitySnapshot, EngineFailure } from "../src/api/types.js";
 import type { EngineAdapters, StageResult } from "../src/lifecycle/stages.js";
+import { candidateFixture } from "./candidate-fixture.js";
 import { planFixture } from "./plan-fixture.js";
 import { renderFixture } from "./render-fixture.js";
 
@@ -82,7 +83,7 @@ function shellAdapters(calls: string[] = []): EngineAdapters {
     package: (input) => {
       calls.push("package");
       expect(input.rendered.html).toBe("<article>Test only</article>");
-      return succeeded({ workspacePath: "test-workspace/candidate.html" });
+      return succeeded(candidateFixture("test-workspace/candidate.html"));
     },
     verify: (input) => {
       calls.push("verify");

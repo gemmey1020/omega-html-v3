@@ -13,6 +13,7 @@ import type {
   StageResult,
 } from "../src/lifecycle/stages.js";
 import { LIFECYCLE_STAGES } from "../src/lifecycle/stages.js";
+import { candidateFixture } from "./candidate-fixture.js";
 import { planFixture } from "./plan-fixture.js";
 import { renderFixture } from "./render-fixture.js";
 
@@ -33,7 +34,7 @@ function shell(calls: string[]): EngineAdapters {
     render: () => succeeded(renderFixture("<article>Running.</article>")),
     package: () => {
       calls.push("package");
-      return succeeded({ candidate: "test-only" });
+      return succeeded(candidateFixture());
     },
     verify: () => succeeded({ verified: true }),
     quality: () => succeeded({ quality: true }),

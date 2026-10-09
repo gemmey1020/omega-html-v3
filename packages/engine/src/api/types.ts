@@ -1,5 +1,8 @@
 import type { CapabilitySnapshot } from "@omega/capability-registry";
-import type { PrimeProseRenderOutput } from "@omega/composer";
+import type {
+  PrimeProseRenderOutput,
+  ArtifactCandidate as StandaloneArtifactCandidate,
+} from "@omega/composer";
 import type { MinimalRenderPlan } from "@omega/presentation-engine";
 
 export type { CapabilitySnapshot } from "@omega/capability-registry";
@@ -44,7 +47,7 @@ export interface JsonPayload {
 export type SemanticAnalysis = JsonPayload;
 export type RenderPlan = MinimalRenderPlan;
 export type RenderOutput = PrimeProseRenderOutput;
-export type ArtifactCandidate = JsonPayload;
+export type ArtifactCandidate = StandaloneArtifactCandidate;
 export type GateEvidence = JsonPayload;
 export type DecisionExplanation = JsonPayload;
 export interface CommittedArtifact {
