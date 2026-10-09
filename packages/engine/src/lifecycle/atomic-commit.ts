@@ -38,7 +38,15 @@ export async function admitDirectory(
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
       if (!create || index !== segments.length - 1)
         throw new OutputAdmissionError("Missing ancestor");
-      await mkdir(cursor, { mode: 0o700 });
+      try {
+        await mkdir(cursor, { mode: 0o700 });
+      } catch (creationError) {
+        if ((creationError as NodeJS.ErrnoException).code !== "EEXIST")
+          throw creationError;
+        // A cooperative attempt may have created the child. Re-admit the
+        // complete path, including ancestors, without creating or following links.
+        return admitDirectory(absolute);
+      }
       stat = await lstat(cursor);
     }
     if (stat.isSymbolicLink() || !stat.isDirectory())

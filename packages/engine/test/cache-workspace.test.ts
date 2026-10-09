@@ -656,3 +656,105 @@ test("configured_cache_cannot_write_into_an_immutable_accepted_generation", asyn
     await rm(root, { recursive: true, force: true });
   }
 }, 120000);
+
+test("simultaneous_first_cache_opens_admit_the_same_competing_real_directory", async () => {
+  const { StageCacheStore } = await import("../src/cache/store.js");
+  const root = await mkdtemp(join(tmpdir(), "omega-cache-first-open-t7-"));
+  try {
+    // Several independent first-admission children exercise ordinary FS scheduling,
+    // without mocking real lstat/mkdir or claiming deterministic hostile-host timing.
+    for (let round = 0; round < 10; round++) {
+      const directory = join(root, `cache-${round}`);
+      const results = await Promise.allSettled([
+        StageCacheStore.open(directory),
+        StageCacheStore.open(directory),
+      ]);
+      expect(results.map((result) => result.status)).toEqual([
+        "fulfilled",
+        "fulfilled",
+      ]);
+      expect(await readdir(directory)).toEqual([]);
+      for (const result of results)
+        if (result.status === "fulfilled")
+          expect(result.value.directory).toBe(directory);
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test.each([
+  { name: "cache", cache: "use" as const, diagnostics: "normal" as const },
+  { name: "diagnostics", cache: "off" as const, diagnostics: "full" as const },
+])(
+  "simultaneous_production_first_$name admission_preserves_owned_pairs",
+  async ({ cache, diagnostics }) => {
+    const { isMatchingBuildReceipt } = await import(
+      "../src/receipts/build-receipt.js"
+    );
+    const { realpath } = await import("node:fs/promises");
+    const root = await mkdtemp(join(tmpdir(), "omega-cache-first-build-t7-"));
+    try {
+      const out = join(root, "dist");
+      // A real prior accepted pair admits output/generations first; neither new shared child exists.
+      const prior = await run({ outputDirectory: out, cache: "off" });
+      const priorHtml = await readFile(prior.value.finalArtifactPath);
+      const priorReceipt = await readFile(prior.value.finalReceiptPath);
+      const engine = createProductionEngine();
+      const requests = ["Concurrent first", "Concurrent second"].map(
+        (text) => ({
+          operation: "build" as const,
+          source: { ...source, text: source.text.replace("Running", text) },
+          settings: { outputDirectory: out, cache, diagnostics },
+        }),
+      );
+      const results = await Promise.all(
+        requests.map((request) => engine.build(request)),
+      );
+      expect(results.map((result) => result.status)).toEqual([
+        "succeeded",
+        "succeeded",
+      ]);
+      const values = results.map(accepted);
+      expect(values[0]?.finalArtifactPath).not.toBe(
+        values[1]?.finalArtifactPath,
+      );
+      for (const value of values) {
+        expect(
+          isMatchingBuildReceipt(
+            JSON.parse(await readFile(value.finalReceiptPath, "utf8")),
+            await readFile(value.finalArtifactPath),
+          ),
+        ).toBe(true);
+        expect(value.receipt.gates.acceptance.acceptance).toBe("ACCEPTED");
+      }
+      const current = await realpath(join(out, "current"));
+      expect(
+        isMatchingBuildReceipt(
+          JSON.parse(
+            await readFile(join(current, "build-receipt.json"), "utf8"),
+          ),
+          await readFile(join(current, "artifact.html")),
+        ),
+      ).toBe(true);
+      expect(await readFile(prior.value.finalArtifactPath)).toEqual(priorHtml);
+      expect(await readFile(prior.value.finalReceiptPath)).toEqual(
+        priorReceipt,
+      );
+      expect(await readdir(join(out, ".omega-generations"))).toHaveLength(3);
+      expect(
+        (await readdir(out)).filter(
+          (name) =>
+            name.startsWith(".omega-workspace") ||
+            name.startsWith(".omega-pointer"),
+        ),
+      ).toEqual([]);
+      if (diagnostics === "full")
+        expect(await readdir(join(out, ".omega-diagnostics"))).toHaveLength(2);
+      else expect(await readdir(join(out, ".omega-cache"))).toHaveLength(4);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  },
+  120000,
+);
