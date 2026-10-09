@@ -12,6 +12,8 @@
   },
   "dependencies": {
     "@omega/contracts": "workspace:*",
-    "@omega/spec-frontend": "workspace:*"
+    "@omega/spec-frontend": "workspace:*",
+    "@omega/capability-registry": "workspace:*",
+    "@omega/presentation-engine": "workspace:*"
   }
 }

@@ -13,6 +13,7 @@ import type {
   StageResult,
 } from "../src/lifecycle/stages.js";
 import { LIFECYCLE_STAGES } from "../src/lifecycle/stages.js";
+import { planFixture } from "./plan-fixture.js";
 
 const source = {
   module: "events.omega.yaml",
@@ -27,8 +28,7 @@ function succeeded<T>(value: T): StageResult<T> {
 function shell(calls: string[]): EngineAdapters {
   return {
     semantic: () => succeeded({ eligible: true }),
-    plan: () =>
-      succeeded({ representation: "omega.core.editorial.prose-flow@1" }),
+    plan: (input) => succeeded(planFixture(input.compiled.canonical)),
     render: () => succeeded({ html: "<article>Running.</article>" }),
     package: () => {
       calls.push("package");
@@ -454,7 +454,7 @@ test("correlation_never_enters_stage_data_or_deterministic_result", async () => 
     ...shell([]),
     plan: (input) => {
       inputs.push(input);
-      return succeeded({ representation: "omega.core.editorial.prose-flow@1" });
+      return succeeded(planFixture(input.compiled.canonical));
     },
   });
   const first = await engine.build(
@@ -697,7 +697,7 @@ const requests: EngineRequest[] = [
   { operation: "inspect", source },
   { operation: "plan", source },
   { operation: "build", source },
-  { operation: "explain", plan: {} },
+  { operation: "explain", plan: planFixture() },
   { operation: "migrate", source, targetVersion: "3.0" },
   { operation: "capabilities" },
 ];

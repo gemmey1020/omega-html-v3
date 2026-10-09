@@ -1,3 +1,4 @@
+import { createEmptyCapabilitySnapshot } from "@omega/capability-registry";
 import {
   CANONICAL_CONTRACT_VERSION,
   type CompilerSource,
@@ -72,17 +73,7 @@ function sourceSnapshot(source: CompilerSource): CompilerSource {
   };
 }
 
-const EMPTY_CAPABILITIES: CapabilitySnapshot = snapshot({
-  intents: [],
-  contentKinds: [],
-  representations: [],
-  profiles: [],
-  targets: [],
-  renderers: [],
-  plugins: [],
-  qaRules: [],
-  policyVersions: [],
-});
+const EMPTY_CAPABILITIES: CapabilitySnapshot = createEmptyCapabilitySnapshot();
 
 /** One attempt owns scheduling, telemetry and terminal state. */
 class Attempt<O extends EngineOperation> {

@@ -1,3 +1,8 @@
+import type { CapabilitySnapshot } from "@omega/capability-registry";
+import type { MinimalRenderPlan } from "@omega/presentation-engine";
+
+export type { CapabilitySnapshot } from "@omega/capability-registry";
+
 import type {
   CompilerSource,
   CompilerStage,
@@ -36,25 +41,13 @@ export interface JsonPayload {
   readonly [key: string]: JsonValue;
 }
 export type SemanticAnalysis = JsonPayload;
-export type RenderPlan = JsonPayload;
+export type RenderPlan = MinimalRenderPlan;
 export type RenderOutput = JsonPayload;
 export type ArtifactCandidate = JsonPayload;
 export type GateEvidence = JsonPayload;
 export type DecisionExplanation = JsonPayload;
 export interface CommittedArtifact {
   readonly finalArtifactPath: string;
-}
-
-export interface CapabilitySnapshot {
-  readonly intents: readonly string[];
-  readonly contentKinds: readonly string[];
-  readonly representations: readonly string[];
-  readonly profiles: readonly string[];
-  readonly targets: readonly string[];
-  readonly renderers: readonly string[];
-  readonly plugins: readonly string[];
-  readonly qaRules: readonly string[];
-  readonly policyVersions: readonly string[];
 }
 
 /** Execution settings never enter canonical semantics or semantic hashes. */

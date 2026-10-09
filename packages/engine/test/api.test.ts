@@ -1,7 +1,12 @@
+import {
+  createMinimalCapabilityRegistry,
+  snapshotCapabilities,
+} from "@omega/capability-registry";
 import { expect, test } from "vitest";
 import { OmegaEngine } from "../src/api/engine.js";
 import type { CapabilitySnapshot, EngineFailure } from "../src/api/types.js";
 import type { EngineAdapters, StageResult } from "../src/lifecycle/stages.js";
+import { planFixture } from "./plan-fixture.js";
 
 const source = {
   module: "fixture.omega.yaml",
@@ -40,17 +45,13 @@ function succeeded<T>(value: T): StageResult<T> {
   return { status: "succeeded", value };
 }
 
-const capabilities: CapabilitySnapshot = {
-  intents: ["narrative"],
-  contentKinds: ["prose"],
-  representations: ["omega.core.editorial.prose-flow@1"],
-  profiles: ["prime"],
-  targets: ["standalone-html"],
-  renderers: ["test-only-static"],
-  plugins: [],
-  qaRules: ["test-only-gate"],
-  policyVersions: ["qa.phase.p02.walking-skeleton.v1"],
-};
+const capabilities: CapabilitySnapshot = structuredClone(
+  snapshotCapabilities({
+    ...createMinimalCapabilityRegistry(),
+    renderers: ["test-only-static"],
+    qaRules: ["test-only-gate"],
+  }),
+);
 
 /** Explicit shell doubles, never production renderer/QA implementations. */
 function shellAdapters(calls: string[] = []): EngineAdapters {
@@ -68,7 +69,7 @@ function shellAdapters(calls: string[] = []): EngineAdapters {
     plan: (input) => {
       calls.push("plan");
       expect(input.semantic.eligible).toBe(true);
-      return succeeded({ representation: "omega.core.editorial.prose-flow@1" });
+      return succeeded(planFixture(input.compiled.canonical));
     },
     render: (input) => {
       calls.push("render");
@@ -323,12 +324,12 @@ test("capabilities_reports_empty_registry_truthfully_and_snapshots_installed_reg
 test("explain_uses_structured_plan_receipts_and_fails_when_provider_is_missing", async () => {
   const request = {
     operation: "explain" as const,
-    plan: { representation: "test-choice" },
+    plan: planFixture(),
   };
   const result = await new OmegaEngine(shellAdapters()).explain(request);
   expect(result).toMatchObject({
     status: "succeeded",
-    value: { representation: "test-choice" },
+    value: { representation: "omega.core.editorial.prose-flow@1" },
   });
   expect(Object.isFrozen(request.plan)).toBe(false);
   expect(await new OmegaEngine().explain(request)).toMatchObject({
@@ -393,7 +394,7 @@ test("byte_input_and_execution_settings_are_snapshotted_before_await_and_never_f
 
 test("capability_and_stage_outputs_are_owned_immutable_snapshots_across_async_stages", async () => {
   const registry = { ...capabilities, profiles: ["prime"] };
-  const plan = { representation: "original" };
+  const plan = { ...planFixture() };
   const engine = new OmegaEngine({
     ...shellAdapters(),
     capabilities: () => succeeded(registry),
@@ -408,10 +409,10 @@ test("capability_and_stage_outputs_are_owned_immutable_snapshots_across_async_st
     plan: () => succeeded(plan),
   });
   const result = await engine.plan({ operation: "plan", source });
-  plan.representation = "changed";
+  plan.document = { ...plan.document, title: "changed" };
   expect(result.status).toBe("succeeded");
   if (result.status !== "succeeded") throw new Error("Expected plan success");
-  expect(result.value.plan.representation).toBe("original");
+  expect(result.value.plan.document.title).toBe("Fixture");
   expect(result.value.capabilities.profiles).toEqual(["prime"]);
   expect(Object.isFrozen(plan)).toBe(false);
   expect(Object.isFrozen(registry.profiles)).toBe(false);

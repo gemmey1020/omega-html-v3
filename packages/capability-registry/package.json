@@ -1,0 +1,16 @@
+{
+  "name": "@omega/capability-registry",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest --run",
+    "typecheck": "tsc --project tsconfig.json"
+  },
+  "dependencies": {
+    "@omega/spec-frontend": "workspace:*"
+  }
+}
