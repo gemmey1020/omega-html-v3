@@ -132,7 +132,7 @@ export async function main(args: readonly string[]): Promise<number> {
   } catch {
     const result = {
       operation: command,
-      status: cancellation.token.signal.aborted ? "cancelled" : "failed",
+      status: "failed",
       failureClass: "internal",
       code: "OMEGA-CLI-INTERNAL",
     };
@@ -141,7 +141,7 @@ export async function main(args: readonly string[]): Promise<number> {
         ? `${JSON.stringify({ type: "result", result })}\n`
         : `${JSON.stringify(result)}\n`,
     );
-    return cancellation.token.signal.aborted ? 130 : 4;
+    return 4;
   } finally {
     process.off("SIGINT", onInterrupt);
   }

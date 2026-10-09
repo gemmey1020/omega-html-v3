@@ -1,5 +1,12 @@
 import { spawn } from "node:child_process";
-import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { expect, test } from "vitest";
@@ -11,10 +18,11 @@ export function cli(
   args: string[],
   cancelStage?: string,
   env: NodeJS.ProcessEnv = {},
+  nodeArgs: readonly string[] = [],
 ) {
   return new Promise<{ code: number | null; stdout: string; stderr: string }>(
     (done) => {
-      const child = spawn(process.execPath, [launcher, ...args], {
+      const child = spawn(process.execPath, [...nodeArgs, launcher, ...args], {
         stdio: ["ignore", "pipe", "pipe"],
         env: { ...process.env, ...env },
       });
@@ -202,6 +210,68 @@ test("events_are_versioned_jsonl_and_real_SIGINT_preserves_the_accepted_pair", a
     expect(await readFile(join(out, "current/build-receipt.json"))).toEqual(
       receipt,
     );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+}, 120000);
+
+test("unexpected_source_read_error_stays_internal_after_controlled_cancellation_request", async () => {
+  const root = await mkdtemp(join(tmpdir(), "omega-cli-unexpected-cancel-"));
+  try {
+    const source = join(root, "loop.omega.yaml");
+    await symlink("loop.omega.yaml", source);
+    const preload = join(root, "request-cli-cancellation.mjs");
+    const marker = join(root, "delivered.txt");
+    // Invoke only the named CLI listener; this is controlled boundary instrumentation, not an OS signal race.
+    await writeFile(
+      preload,
+      `import { writeFileSync } from 'node:fs';
+const original=process.on;
+process.on=function(name,listener){
+ const value=original.call(this,name,listener);
+ if(name==='SIGINT' && listener.name==='onInterrupt'){
+  listener();
+  writeFileSync(process.env.OMEGA_CLI_TEST_CANCEL_MARKER,'onInterrupt\\n');
+ }
+ return value;
+};
+`,
+    );
+    for (const operation of ["validate", "build"]) {
+      const events = operation === "build";
+      for (const requested of [false, true]) {
+        await rm(marker, { force: true });
+        const result = await cli(
+          [operation, source, events ? "--events=jsonl" : "--json"],
+          undefined,
+          { OMEGA_CLI_TEST_CANCEL_MARKER: marker },
+          requested ? ["--import", preload] : [],
+        );
+        const delivered = requested ? await readFile(marker, "utf8") : null;
+        if (process.env.OMEGA_CLI_FIX_EVIDENCE_DIRECTORY)
+          await writeFile(
+            join(
+              process.env.OMEGA_CLI_FIX_EVIDENCE_DIRECTORY,
+              `${operation}-${requested ? "requested" : "ordinary"}.json`,
+            ),
+            `${JSON.stringify({ ...result, delivered }, null, 2)}\n`,
+          );
+        if (requested) expect(delivered).toBe("onInterrupt\n");
+        expect(result.code).toBe(4);
+        expect(result.stderr).toBe("");
+        const payload = {
+          operation,
+          status: "failed",
+          failureClass: "internal",
+          code: "OMEGA-CLI-INTERNAL",
+        };
+        expect(result.stdout).toBe(
+          `${JSON.stringify(events ? { type: "result", result: payload } : payload)}\n`,
+        );
+        expect(result.stdout).not.toContain(root);
+        expect(result.stdout).not.toContain("ELOOP");
+      }
+    }
   } finally {
     await rm(root, { recursive: true, force: true });
   }
