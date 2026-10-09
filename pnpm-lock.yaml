@@ -193,6 +193,15 @@ importers:
 
   packages/contracts: {}
 
+  packages/engine:
+    dependencies:
+      '@omega/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@omega/spec-frontend':
+        specifier: workspace:*
+        version: link:../spec-frontend
+
   packages/spec-frontend:
     dependencies:
       '@omega/contracts':
