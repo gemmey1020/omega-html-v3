@@ -14,6 +14,8 @@ import type {
 } from "../src/lifecycle/stages.js";
 import { LIFECYCLE_STAGES } from "../src/lifecycle/stages.js";
 import { candidateFixture } from "./candidate-fixture.js";
+import { committedFixture } from "./committed-fixture.js";
+import { gateFixture } from "./gate-fixture.js";
 import { planFixture } from "./plan-fixture.js";
 import { renderFixture } from "./render-fixture.js";
 
@@ -36,13 +38,13 @@ function shell(calls: string[]): EngineAdapters {
       calls.push("package");
       return succeeded(candidateFixture());
     },
-    verify: () => succeeded({ verified: true }),
-    quality: () => succeeded({ quality: true }),
-    regression: () => succeeded({ regression: true }),
-    acceptance: () => succeeded({ accepted: true }),
+    verify: () => succeeded(gateFixture("verify")),
+    quality: () => succeeded(gateFixture("quality")),
+    regression: () => succeeded(gateFixture("regression")),
+    acceptance: () => succeeded(gateFixture("acceptance")),
     commit: () => {
       calls.push("commit");
-      return succeeded({ finalArtifactPath: "test-only.html" });
+      return succeeded(committedFixture("test-only.html"));
     },
   };
 }
@@ -92,8 +94,8 @@ test("commit_adapter_cannot_report_a_different_published_path", async () => {
   const result = await new OmegaEngine({
     ...shell([]),
     commit: (_input, context) => {
-      context.publishCommit(() => ({ finalArtifactPath: "actual.html" }));
-      return succeeded({ finalArtifactPath: "unpublished.html" });
+      context.publishCommit(() => committedFixture("actual.html"));
+      return succeeded(committedFixture("unpublished.html"));
     },
   }).build({ operation: "build", source });
   expect(result).toMatchObject({
@@ -112,7 +114,7 @@ test("settled_commit_context_cannot_publish_from_completion_observer", async () 
     ...shell([]),
     commit: (_input, context) => {
       retained = context;
-      return succeeded({ finalArtifactPath: "test-only.html" });
+      return succeeded(committedFixture("test-only.html"));
     },
   }).build(
     { operation: "build", source },
@@ -123,7 +125,7 @@ test("settled_commit_context_cannot_publish_from_completion_observer", async () 
           try {
             retained.publishCommit(() => {
               calls.push("late publication");
-              return { finalArtifactPath: "late.html" };
+              return committedFixture("late.html");
             });
           } catch {
             rejected = true;
@@ -172,7 +174,7 @@ test.each([
             try {
               retained.publishCommit(() => {
                 calls.push("late publication");
-                return { finalArtifactPath: "late.html" };
+                return committedFixture("late.html");
               });
             } catch {
               publicationRejected = true;
@@ -530,7 +532,7 @@ test("cancellation_before_commit_publication_prevents_publication", async () => 
       abort.abort();
       const value = context.publishCommit(() => {
         calls.push("publish");
-        return { finalArtifactPath: "test-only.html" };
+        return committedFixture("test-only.html");
       });
       return succeeded(value);
     },
@@ -548,9 +550,9 @@ test("cancellation_after_publication_before_adapter_settles_preserves_success", 
   const result = await new OmegaEngine({
     ...shell([]),
     commit: async (_input, context) => {
-      const value = context.publishCommit(() => ({
-        finalArtifactPath: "test-only.html",
-      }));
+      const value = context.publishCommit(() =>
+        committedFixture("test-only.html"),
+      );
       abort.abort();
       await Promise.resolve();
       return succeeded(value);
@@ -564,7 +566,7 @@ test("cancellation_after_publication_before_adapter_settles_preserves_success", 
   );
   expect(result).toMatchObject({
     status: "succeeded",
-    value: { finalArtifactPath: "test-only.html" },
+    value: committedFixture("test-only.html"),
   });
   expect(events.at(-1)?.name).toBe("build.completed");
   expect(events.filter((event) => event.name === "build.cancelled")).toEqual(
@@ -579,7 +581,7 @@ test("non_commit_stage_cannot_publish_or_seal_cancellation", async () => {
     render: (_input, context) => {
       context.publishCommit(() => {
         calls.push("publish");
-        return { finalArtifactPath: "test-only.html" };
+        return committedFixture("test-only.html");
       });
       return succeeded(renderFixture("must not render"));
     },
@@ -601,7 +603,7 @@ test("throwing_publication_does_not_seal_cancellation", async () => {
         abort.abort();
         throw new Error("publication failed");
       });
-      return succeeded({ finalArtifactPath: "unreachable" });
+      return succeeded(committedFixture("unreachable"));
     },
   }).build(
     { operation: "build", source },
@@ -630,7 +632,7 @@ test.each(["throw", "failed-result"])(
     const result = await new OmegaEngine({
       ...shell([]),
       commit: (_input, context) => {
-        context.publishCommit(() => ({ finalArtifactPath: "test-only.html" }));
+        context.publishCommit(() => committedFixture("test-only.html"));
         abort.abort();
         if (mode === "throw") throw new Error("bug /private/host/path");
         return { status: "failed", failureClass: "execution", diagnostics: [] };
@@ -671,11 +673,11 @@ test("explicit_cancellation_check_after_publication_returns_captured_success", a
   const result = await new OmegaEngine({
     ...shell([]),
     commit: (_input, context) => {
-      context.publishCommit(() => ({ finalArtifactPath: "actual.html" }));
+      context.publishCommit(() => committedFixture("actual.html"));
       cancellation.cancel();
       cancellation.cancel();
       throwIfCancellationRequested(context.cancellationToken);
-      return succeeded({ finalArtifactPath: "unreachable" });
+      return succeeded(committedFixture("unreachable"));
     },
   }).build(
     { operation: "build", source },
@@ -686,7 +688,7 @@ test("explicit_cancellation_check_after_publication_returns_captured_success", a
   );
   expect(result).toMatchObject({
     status: "succeeded",
-    value: { finalArtifactPath: "actual.html" },
+    value: committedFixture("actual.html"),
   });
   expect(events.at(-1)?.name).toBe("build.completed");
   expect(
@@ -840,4 +842,135 @@ test("adapter_cannot_forge_lifecycle_terminal_events", async () => {
     events.filter((event) => event.name === "build.completed"),
   ).toHaveLength(0);
   expect(events.at(-1)?.name).toBe("build.failed");
+});
+
+test("uncommitted_disposal_runs_before_one_terminal_and_after_adapter_context_closes", async () => {
+  const calls: string[] = [];
+  let previous: StageContext | undefined;
+  const events: BuildEvent[] = [];
+  const adapters = {
+    ...shell(calls),
+    semantic: (
+      _input: Parameters<NonNullable<EngineAdapters["semantic"]>>[0],
+      context: StageContext,
+    ) => {
+      previous = context;
+      return succeeded({ eligible: true });
+    },
+    disposeUncommitted: async () => {
+      calls.push("dispose");
+      previous?.emit({ name: "stage.progress", completed: 99 });
+    },
+  };
+  const result = await new OmegaEngine(adapters).validate(
+    { operation: "validate", source },
+    {
+      onEvent: (event) => {
+        events.push(event);
+        if (event.name === "build.completed") calls.push("terminal");
+      },
+    },
+  );
+  expect(result.status).toBe("succeeded");
+  expect(calls.slice(-2)).toEqual(["dispose", "terminal"]);
+  expect(
+    events.some(
+      (event) => event.name === "stage.progress" && event.completed === 99,
+    ),
+  ).toBe(false);
+});
+
+test("uncommitted_disposal_covers_domain_internal_and_prestart_cancellation", async () => {
+  for (const mode of ["domain", "internal", "cancelled"]) {
+    let disposed = 0;
+    const events: BuildEvent[] = [];
+    const abort = new AbortController();
+    if (mode === "cancelled") abort.abort();
+    const adapters = {
+      ...shell([]),
+      ...(mode === "internal"
+        ? {
+            preflight: () => {
+              throw new Error("private-path");
+            },
+          }
+        : {}),
+      disposeUncommitted: async () => {
+        disposed++;
+      },
+    };
+    const result = await new OmegaEngine(adapters).build(
+      {
+        operation: "build",
+        source:
+          mode === "domain" ? { ...source, text: "omega: [broken" } : source,
+      },
+      {
+        cancellationToken: { signal: abort.signal },
+        onEvent: (event) => events.push(event),
+      },
+    );
+    expect(disposed).toBe(1);
+    expect(result.status).toBe(mode === "cancelled" ? "cancelled" : "failed");
+    expect(
+      events.filter((event) =>
+        ["build.completed", "build.failed", "build.cancelled"].includes(
+          event.name,
+        ),
+      ),
+    ).toHaveLength(1);
+  }
+});
+
+test("cleanup_failure_after_active_cancellation_is_redacted_internal_with_one_failed_terminal", async () => {
+  const abort = new AbortController();
+  const events: BuildEvent[] = [];
+  const adapters = {
+    ...shell([]),
+    semantic: () => {
+      abort.abort();
+      return succeeded({ eligible: true });
+    },
+    disposeUncommitted: async () => {
+      throw new Error("/private/cleanup/secret");
+    },
+  };
+  const result = await new OmegaEngine(adapters).build(
+    { operation: "build", source },
+    {
+      cancellationToken: { signal: abort.signal },
+      onEvent: (event) => events.push(event),
+    },
+  );
+  expect(result).toMatchObject({ status: "failed", failureClass: "internal" });
+  expect(result.diagnostics.at(-1)?.code).toBe("OMEGA-ENGINE-CLEANUP-INTERNAL");
+  expect(JSON.stringify(result)).not.toContain("/private");
+  expect(events.filter((event) => event.name === "build.failed")).toHaveLength(
+    1,
+  );
+  expect(
+    events.filter((event) => event.name === "build.cancelled"),
+  ).toHaveLength(0);
+});
+
+test("sealed_publication_skips_uncommitted_disposal_entirely", async () => {
+  let disposed = 0;
+  const adapters = {
+    ...shell([]),
+    commit: (
+      _input: Parameters<NonNullable<EngineAdapters["commit"]>>[0],
+      context: StageContext,
+    ) =>
+      succeeded(context.publishCommit(() => committedFixture("actual.html"))),
+    disposeUncommitted: async () => {
+      disposed++;
+      throw new Error("must never execute");
+    },
+  };
+  const result = await new OmegaEngine(adapters).build({
+    operation: "build",
+    source,
+  });
+  expect(result.status).toBe("succeeded");
+  expect(disposed).toBe(0);
 });

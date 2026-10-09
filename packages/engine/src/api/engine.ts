@@ -97,6 +97,10 @@ class Attempt<O extends EngineOperation> {
     });
   }
 
+  get publicationCommitted(): boolean {
+    return this.published !== undefined;
+  }
+
   get cancellationRequested(): boolean {
     return !this.published && this.token.signal.aborted;
   }
@@ -264,6 +268,18 @@ class Attempt<O extends EngineOperation> {
     return this.failed("internal");
   }
 
+  cleanupFailure(): EngineFailure<O> {
+    this.addDiagnostics([
+      {
+        code: "OMEGA-ENGINE-CLEANUP-INTERNAL",
+        severity: "ERROR",
+        stage: this.stage,
+        message: "Owned uncommitted output cleanup failed.",
+      },
+    ]);
+    return this.failed("internal");
+  }
+
   cancelled(): EngineCancelled<O> {
     return snapshot({
       operation: this.operation,
@@ -315,6 +331,17 @@ export class OmegaEngine {
       result = attempt.cancellationRequested
         ? attempt.cancelled()
         : attempt.internalFailure();
+    }
+    if (!attempt.publicationCommitted && this.adapters.disposeUncommitted) {
+      try {
+        // Settled stage contexts are closed. Cancellation never skips owned cleanup.
+        await this.adapters.disposeUncommitted();
+        if (result.status === "succeeded" && attempt.cancellationRequested)
+          result = attempt.cancelled();
+      } catch {
+        // A cleanup failure remains visible even when the request was aborted.
+        result = attempt.cleanupFailure();
+      }
     }
     if (result.status === "succeeded")
       attempt.events.emit({ name: "build.completed", status: result.status });
@@ -561,7 +588,7 @@ export class OmegaEngine {
         return attempt.succeeded({
           ...this.inspection(planned),
           plan: planned.plan,
-          finalArtifactPath: committed.value.finalArtifactPath,
+          ...committed.value,
         });
       },
       "preflight",

@@ -48,11 +48,17 @@ export type SemanticAnalysis = JsonPayload;
 export type RenderPlan = MinimalRenderPlan;
 export type RenderOutput = PrimeProseRenderOutput;
 export type ArtifactCandidate = StandaloneArtifactCandidate;
-export type GateEvidence = JsonPayload;
-export type DecisionExplanation = JsonPayload;
-export interface CommittedArtifact {
-  readonly finalArtifactPath: string;
-}
+export type { GateEvidence } from "../qa/types.js";
+
+import type { GateEvidence } from "../qa/types.js";
+
+export type { DecisionExplanation } from "../qa/types.js";
+
+import type { DecisionExplanation } from "../qa/types.js";
+
+export type { CommittedArtifact } from "../receipts/build-receipt.js";
+
+import type { CommittedArtifact } from "../receipts/build-receipt.js";
 
 /** Execution settings never enter canonical semantics or semantic hashes. */
 export interface ExecutionSettings {

@@ -66,6 +66,8 @@ export interface StageContext extends EventCorrelation {
 
 /** Optional installation; absent production stages fail instead of faking QA. */
 export interface EngineAdapters {
+  /** Owned attempt cleanup before its terminal, ignored after sealed publication. */
+  readonly disposeUncommitted?: () => void | Promise<void>;
   readonly capabilities?: (
     context: StageContext,
   ) =>

@@ -16,7 +16,8 @@
     "toolchain": "node scripts/verify-toolchain.mjs",
     "python:lint": "uv run --no-sync --offline ruff check qa/conformance/bootstrap",
     "python:typecheck": "uv run --no-sync --offline mypy qa/conformance/bootstrap",
-    "python:test": "uv run --no-sync --offline pytest -q"
+    "python:test": "uv run --no-sync --offline pytest -q",
+    "omega": "node packages/cli/src/launch.mjs"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.15",

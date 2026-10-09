@@ -1,0 +1,20 @@
+{
+  "name": "@omega/cli",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "omega": "./src/launch.mjs"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest --run",
+    "typecheck": "tsc --project tsconfig.json"
+  },
+  "dependencies": {
+    "@omega/engine": "workspace:*",
+    "rolldown": "1.2.13"
+  }
+}

@@ -187,3 +187,85 @@ test("concurrent_real_rendering_closes_resources_without_dev_server_listeners", 
     await rm(temporaryRoot, { recursive: true, force: true });
   }
 });
+
+test("production_engine_promotes_only_the_exact_phase_accepted_artifact", async ({
+  page,
+  context,
+}, testInfo) => {
+  const { createProductionEngine } = await import(
+    "../../packages/engine/src/index.js"
+  );
+  const { readFile, writeFile } = await import("node:fs/promises");
+  const { sha256 } = await import("../../packages/spec-frontend/src/index.js");
+  const root = await mkdtemp(join(tmpdir(), "omega-engine-browser-t6-"));
+  const requests: string[] = [];
+  context.on("request", (request) => {
+    if (!request.url().startsWith("file:")) requests.push(request.url());
+  });
+  await context.route("**/*", (route) =>
+    route.request().url().startsWith("file:")
+      ? route.continue()
+      : route.abort("blockedbyclient"),
+  );
+  try {
+    const result = await createProductionEngine().build({
+      operation: "build",
+      source: {
+        module: "phase-accepted.omega.yaml",
+        text: "omega: {schema: '3.0'}\nkind: artifact\nspec:\n  document: {title: 'تقرير Prime', language: ar}\n  sections:\n    - id: intro\n      title: المقدمة\n      body: |\n        محتوى أساسي واضح مع **Prime** ورمز `BUILD_ID_01`.\n\n        ```text\n        e\u0301 /tmp/path $HOME\n        ```\n",
+      },
+      settings: { outputDirectory: join(root, "dist") },
+    });
+    expect(result.status).toBe("succeeded");
+    if (result.status !== "succeeded") throw new Error(JSON.stringify(result));
+    const bytes = await readFile(result.value.finalArtifactPath);
+    const receipt = JSON.parse(
+      await readFile(result.value.finalReceiptPath, "utf8"),
+    );
+    expect(receipt.artifactHash).toBe(sha256(bytes));
+    expect(receipt.normalizedHash).toBe(result.value.compiled.normalizedHash);
+    expect(receipt.acceptancePolicy).toBe("qa.phase.p02.walking-skeleton.v1");
+    expect(receipt.gates.acceptance.acceptance).toBe("ACCEPTED");
+    expect(
+      Object.values(receipt.gates).every(
+        (gate) =>
+          (gate as { artifactHash: string }).artifactHash ===
+          receipt.artifactHash,
+      ),
+    ).toBe(true);
+    await page.goto(pathToFileURL(result.value.finalArtifactPath).href);
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+      "تقرير Prime",
+    );
+    await expect(
+      page.getByText("محتوى أساسي واضح", { exact: false }),
+    ).toBeVisible();
+    expect(await page.locator("html").getAttribute("dir")).toBe("rtl");
+    expect(await page.locator("pre code").textContent()).toBe(
+      "e\u0301 /tmp/path $HOME\n",
+    );
+    expect(
+      await page.locator("script,link[rel=stylesheet],astro-island").count(),
+    ).toBe(0);
+    await page.screenshot({
+      path: testInfo.outputPath("phase-accepted-desktop.png"),
+      fullPage: true,
+    });
+    await page.setViewportSize({ width: 320, height: 900 });
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth),
+    ).toBe(320);
+    await page.screenshot({
+      path: testInfo.outputPath("phase-accepted-mobile-320.png"),
+      fullPage: true,
+    });
+    expect(requests).toEqual([]);
+    await writeFile(testInfo.outputPath("phase-accepted-artifact.html"), bytes);
+    await writeFile(
+      testInfo.outputPath("phase-accepted-receipt.json"),
+      JSON.stringify(receipt, null, 2),
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

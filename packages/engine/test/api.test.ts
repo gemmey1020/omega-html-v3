@@ -7,6 +7,8 @@ import { OmegaEngine } from "../src/api/engine.js";
 import type { CapabilitySnapshot, EngineFailure } from "../src/api/types.js";
 import type { EngineAdapters, StageResult } from "../src/lifecycle/stages.js";
 import { candidateFixture } from "./candidate-fixture.js";
+import { committedFixture } from "./committed-fixture.js";
+import { gateFixture } from "./gate-fixture.js";
 import { planFixture } from "./plan-fixture.js";
 import { renderFixture } from "./render-fixture.js";
 
@@ -90,40 +92,44 @@ function shellAdapters(calls: string[] = []): EngineAdapters {
       expect(input.candidate.workspacePath).toBe(
         "test-workspace/candidate.html",
       );
-      return succeeded({ checked: "verify" });
+      return succeeded(gateFixture("verify"));
     },
     quality: (input) => {
       calls.push("quality");
-      expect(input).toHaveProperty("gates.verify", { checked: "verify" });
-      return succeeded({ checked: "quality" });
+      expect(input).toHaveProperty("gates.verify", gateFixture("verify"));
+      return succeeded(gateFixture("quality"));
     },
     regression: (input) => {
       calls.push("regression");
-      expect(input).toHaveProperty("gates.quality", { checked: "quality" });
-      return succeeded({ checked: "regression" });
+      expect(input).toHaveProperty("gates.quality", gateFixture("quality"));
+      return succeeded(gateFixture("regression"));
     },
     acceptance: (input) => {
       calls.push("acceptance");
       expect(input.acceptancePolicy).toBe("qa.phase.p02.walking-skeleton.v1");
       expect(input).toHaveProperty("gates", {
-        verify: { checked: "verify" },
-        quality: { checked: "quality" },
-        regression: { checked: "regression" },
+        verify: gateFixture("verify"),
+        quality: gateFixture("quality"),
+        regression: gateFixture("regression"),
       });
-      return succeeded({ checked: "acceptance" });
+      return succeeded(gateFixture("acceptance"));
     },
     commit: (input) => {
       calls.push("commit");
       expect(input.gates).toEqual({
-        verify: { checked: "verify" },
-        quality: { checked: "quality" },
-        regression: { checked: "regression" },
-        acceptance: { checked: "acceptance" },
+        verify: gateFixture("verify"),
+        quality: gateFixture("quality"),
+        regression: gateFixture("regression"),
+        acceptance: gateFixture("acceptance"),
       });
-      return succeeded({ finalArtifactPath: "test-output/artifact.html" });
+      return succeeded(committedFixture("test-output/artifact.html"));
     },
     explain: ({ plan }) =>
-      succeeded({ representation: plan.representation ?? null }),
+      succeeded({
+        representation: plan.representation ?? null,
+        planHash: plan.planHash,
+        reason: "test-only",
+      }),
   };
 }
 
