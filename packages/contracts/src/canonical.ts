@@ -17,6 +17,8 @@ export type JsonValue =
 
 /** Validated ASCII identity. Grammar validation belongs to the compiler. */
 export type CanonicalId = string;
+/** Generated local conveniences never provide stable external authority. */
+export type IdOrigin = "explicit" | "generated";
 export type TextDirection = "rtl" | "ltr";
 export type PresentationProfile = "prime" | "silver" | "gold" | "cyan";
 
@@ -86,6 +88,7 @@ export type RichTextBlock =
 
 export interface ProseBlock {
   readonly id: CanonicalId;
+  readonly idOrigin: IdOrigin;
   readonly kind: "prose";
   readonly text: RichText;
 }
@@ -95,6 +98,7 @@ export type ContentBlock = ProseBlock;
 
 export interface CanonicalSection {
   readonly id: CanonicalId;
+  readonly idOrigin: IdOrigin;
   readonly title: string | null;
   readonly intent?: string;
   readonly content: readonly ContentBlock[];
@@ -104,7 +108,7 @@ export interface CanonicalSection {
 export interface CanonicalContract {
   readonly contractVersion: CanonicalContractVersion;
   readonly kind: "artifact";
-  readonly metadata: { readonly id: CanonicalId };
+  readonly metadata: { readonly id: CanonicalId; readonly idOrigin: IdOrigin };
   readonly spec: {
     readonly target: "standalone-html";
     readonly presentation: ArtifactPresentation;
@@ -114,20 +118,22 @@ export interface CanonicalContract {
 }
 
 /** Internal stage DTOs after text normalization and before the ID pass. */
-export interface DraftProseBlock extends Omit<ProseBlock, "id"> {
+export interface DraftProseBlock extends Omit<ProseBlock, "id" | "idOrigin"> {
   readonly id?: CanonicalId;
+  readonly idOrigin?: never;
 }
 
 export interface DraftCanonicalSection
-  extends Omit<CanonicalSection, "id" | "content" | "sections"> {
+  extends Omit<CanonicalSection, "id" | "idOrigin" | "content" | "sections"> {
   readonly id?: CanonicalId;
+  readonly idOrigin?: never;
   readonly content: readonly DraftProseBlock[];
   readonly sections: readonly DraftCanonicalSection[];
 }
 
 export interface DraftCanonicalContract
   extends Omit<CanonicalContract, "metadata" | "spec"> {
-  readonly metadata: { readonly id?: CanonicalId };
+  readonly metadata: { readonly id?: CanonicalId; readonly idOrigin?: never };
   readonly spec: {
     readonly target: "standalone-html";
     readonly presentation: ArtifactPresentation;

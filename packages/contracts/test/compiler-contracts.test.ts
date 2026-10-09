@@ -19,7 +19,7 @@ import { expect, expectTypeOf, test } from "vitest";
 const contract: CanonicalContract = {
   contractVersion: "1.0",
   kind: "artifact",
-  metadata: { id: "review" },
+  metadata: { id: "review", idOrigin: "explicit" },
   spec: {
     target: "standalone-html",
     presentation: { profile: "prime" },
@@ -27,10 +27,12 @@ const contract: CanonicalContract = {
     sections: [
       {
         id: "status",
+        idOrigin: "explicit",
         title: "الحالة الحالية",
         content: [
           {
             id: "summary",
+            idOrigin: "explicit",
             kind: "prose",
             text: {
               dialect: "commonmark",
