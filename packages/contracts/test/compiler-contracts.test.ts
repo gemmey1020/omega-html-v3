@@ -21,6 +21,8 @@ const contract: CanonicalContract = {
   kind: "artifact",
   metadata: { id: "review" },
   spec: {
+    target: "standalone-html",
+    presentation: { profile: "prime" },
     document: { title: "Review", language: "ar", direction: "rtl" },
     sections: [
       {
@@ -186,6 +188,8 @@ test("drafts_allow_missing_ids_and_diagnostics_use_frozen_severities", () => {
     kind: "artifact",
     metadata: {},
     spec: {
+      target: "standalone-html",
+      presentation: { profile: "prime" },
       document: contract.spec.document,
       sections: [
         {

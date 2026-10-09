@@ -18,6 +18,11 @@ export type JsonValue =
 /** Validated ASCII identity. Grammar validation belongs to the compiler. */
 export type CanonicalId = string;
 export type TextDirection = "rtl" | "ltr";
+export type PresentationProfile = "prime" | "silver" | "gold" | "cyan";
+
+export interface ArtifactPresentation {
+  readonly profile: PresentationProfile;
+}
 
 export interface DocumentSemantics {
   readonly title: string;
@@ -101,6 +106,8 @@ export interface CanonicalContract {
   readonly kind: "artifact";
   readonly metadata: { readonly id: CanonicalId };
   readonly spec: {
+    readonly target: "standalone-html";
+    readonly presentation: ArtifactPresentation;
     readonly document: DocumentSemantics;
     readonly sections: readonly CanonicalSection[];
   };
@@ -122,6 +129,8 @@ export interface DraftCanonicalContract
   extends Omit<CanonicalContract, "metadata" | "spec"> {
   readonly metadata: { readonly id?: CanonicalId };
   readonly spec: {
+    readonly target: "standalone-html";
+    readonly presentation: ArtifactPresentation;
     readonly document: DocumentSemantics;
     readonly sections: readonly DraftCanonicalSection[];
   };

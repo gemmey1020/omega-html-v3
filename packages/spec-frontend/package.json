@@ -13,6 +13,10 @@
   "dependencies": {
     "@omega/contracts": "workspace:*",
     "ajv": "8.20.0",
+    "commonmark": "0.31.2",
     "yaml": "2.9.1"
+  },
+  "devDependencies": {
+    "@types/commonmark": "0.27.10"
   }
 }
