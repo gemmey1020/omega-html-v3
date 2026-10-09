@@ -38,11 +38,18 @@ export interface ResolutionManifest {
   readonly entries: readonly ResolutionEntry[];
 }
 
-/** No hashes are invented here; each identity is produced by its later stage. */
+/** Completed semantic snapshot; provenance and locations remain sidecars. */
 export interface CompileSuccess {
   readonly ok: true;
   readonly versions: CompilerVersions;
   readonly canonical: CanonicalContract;
+  readonly canonicalString: string;
+  /** Frozen UTF-8 byte array; unlike Uint8Array, its elements can be frozen. */
+  readonly canonicalBytes: readonly number[];
+  /** SHA-256 of the original source bytes, before newline/text normalization. */
+  readonly rawSourceHash: string;
+  /** SHA-256 of the RFC 8785 canonical UTF-8 bytes only. */
+  readonly normalizedHash: string;
   readonly sourceMap: SourceMap;
   readonly resolutionManifest: ResolutionManifest;
   readonly diagnostics: readonly Diagnostic[];

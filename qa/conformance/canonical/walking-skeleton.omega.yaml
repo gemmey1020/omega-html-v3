@@ -1,0 +1,25 @@
+omega:
+  schema: "3.0"
+kind: artifact
+metadata:
+  id: phase-b
+spec:
+  document:
+    title: مراجعة أ
+    language: ar
+  presentation:
+    profile: cyan
+  sections:
+    - id: current-state
+      title: الحالة الحالية
+      intent: verdict
+      body: |-
+        أ **جاهز** `أ  v3` [المصدر](#A "أ")
+      content:
+        - id: note
+          kind: prose
+          text: Second paragraph.
+      sections:
+        - title: null
+          body: Nested.
+    - title: Next

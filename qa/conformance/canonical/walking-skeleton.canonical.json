@@ -1,0 +1,98 @@
+{
+  "contractVersion": "1.0",
+  "kind": "artifact",
+  "metadata": { "id": "phase-b", "idOrigin": "explicit" },
+  "spec": {
+    "target": "standalone-html",
+    "presentation": { "profile": "cyan" },
+    "document": { "title": "مراجعة أ", "language": "ar", "direction": "rtl" },
+    "sections": [
+      {
+        "id": "current-state",
+        "idOrigin": "explicit",
+        "title": "الحالة الحالية",
+        "intent": "verdict",
+        "content": [
+          {
+            "id": "prose-1",
+            "idOrigin": "generated",
+            "kind": "prose",
+            "text": {
+              "dialect": "commonmark",
+              "dialectVersion": "0.31.2",
+              "blocks": [
+                {
+                  "kind": "paragraph",
+                  "children": [
+                    { "kind": "text", "value": "أ " },
+                    {
+                      "kind": "strong",
+                      "children": [{ "kind": "text", "value": "جاهز" }]
+                    },
+                    { "kind": "text", "value": " " },
+                    { "kind": "inline-code", "value": "أ  v3" },
+                    { "kind": "text", "value": " " },
+                    {
+                      "kind": "link",
+                      "destination": "#A",
+                      "title": "أ",
+                      "children": [{ "kind": "text", "value": "المصدر" }]
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "id": "note",
+            "idOrigin": "explicit",
+            "kind": "prose",
+            "text": {
+              "dialect": "commonmark",
+              "dialectVersion": "0.31.2",
+              "blocks": [
+                {
+                  "kind": "paragraph",
+                  "children": [{ "kind": "text", "value": "Second paragraph." }]
+                }
+              ]
+            }
+          }
+        ],
+        "sections": [
+          {
+            "id": "section-1",
+            "idOrigin": "generated",
+            "title": null,
+            "intent": "narrative",
+            "content": [
+              {
+                "id": "prose-1",
+                "idOrigin": "generated",
+                "kind": "prose",
+                "text": {
+                  "dialect": "commonmark",
+                  "dialectVersion": "0.31.2",
+                  "blocks": [
+                    {
+                      "kind": "paragraph",
+                      "children": [{ "kind": "text", "value": "Nested." }]
+                    }
+                  ]
+                }
+              }
+            ],
+            "sections": []
+          }
+        ]
+      },
+      {
+        "id": "next-1",
+        "idOrigin": "generated",
+        "title": "Next",
+        "content": [],
+        "sections": []
+      }
+    ]
+  }
+}
