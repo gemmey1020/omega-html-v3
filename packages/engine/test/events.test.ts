@@ -138,6 +138,72 @@ test("settled_commit_context_cannot_publish_from_completion_observer", async () 
   expect(events).toHaveLength(count);
 });
 
+test.each([
+  { mode: "throw", cancelled: false },
+  { mode: "reject", cancelled: false },
+  { mode: "throw", cancelled: true },
+  { mode: "reject", cancelled: true },
+])(
+  "rejected_commit_context_is_closed_before_completion ($mode, cancelled=$cancelled)",
+  async ({ mode, cancelled }) => {
+    const cancellation = new CancellationTokenSource();
+    let retained!: StageContext;
+    const calls: string[] = [];
+    const events: BuildEvent[] = [];
+    let publicationRejected = false;
+    let telemetryIgnored = false;
+    const result = await new OmegaEngine({
+      ...shell([]),
+      commit: (_input, context) => {
+        retained = context;
+        if (cancelled) cancellation.cancel();
+        if (mode === "throw") throw new Error("rejected commit fixture");
+        return Promise.reject(new Error("rejected commit fixture"));
+      },
+    }).build(
+      { operation: "build", source },
+      {
+        cancellationToken: cancellation.token,
+        onEvent: (event) => {
+          events.push(event);
+          if (event.name === "stage.completed" && event.stage === "commit") {
+            try {
+              retained.publishCommit(() => {
+                calls.push("late publication");
+                return { finalArtifactPath: "late.html" };
+              });
+            } catch {
+              publicationRejected = true;
+            }
+            try {
+              retained.emit({ name: "stage.progress", completed: 9 });
+              telemetryIgnored = true;
+            } catch {
+              telemetryIgnored = false;
+            }
+          }
+        },
+      },
+    );
+    expect(publicationRejected).toBe(true);
+    expect(telemetryIgnored).toBe(true);
+    expect(calls).toEqual([]);
+    expect(result).toMatchObject({
+      status: cancelled ? "cancelled" : "failed",
+      stage: "commit",
+    });
+    if (!cancelled) expect(result).toHaveProperty("failureClass", "internal");
+    expect(result).not.toHaveProperty("publication");
+    expect(events.filter((event) => event.name === "stage.progress")).toEqual(
+      [],
+    );
+    expect(events.at(-1)?.name).toBe(
+      cancelled ? "build.cancelled" : "build.failed",
+    );
+    expect(events.at(-1)).not.toHaveProperty("publication");
+  },
+);
+
 test("successful_event_stream_is_versioned_correlated_and_ordered", async () => {
   const events: BuildEvent[] = [];
   const result = await new OmegaEngine(shell([])).build(

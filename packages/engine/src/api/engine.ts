@@ -234,6 +234,7 @@ class Attempt<O extends EngineOperation> {
         });
       return result;
     } catch (error) {
+      active = false;
       const status = this.cancellationRequested ? "cancelled" : "failed";
       this.stages.push({ stage, status });
       this.events.emit({ name: "stage.completed", stage, status });
