@@ -8,6 +8,8 @@ import type {
   IdOrigin,
 } from "@omega/contracts";
 
+import { inspectJsonModel, modelDiagnostic } from "../validation/json-model.js";
+
 export type IdAssignmentResult =
   | {
       readonly ok: true;
@@ -42,6 +44,12 @@ function slug(title: string | null, fallback: string): string {
 export function assignCanonicalIds(
   draft: DraftCanonicalContract,
 ): IdAssignmentResult {
+  const issue = inspectJsonModel(draft);
+  if (issue)
+    return {
+      ok: false,
+      diagnostics: [modelDiagnostic(issue, "ids", "OMEGA-ID")],
+    };
   const diagnostics: Diagnostic[] = [];
   type Candidate = {
     readonly id?: CanonicalId;

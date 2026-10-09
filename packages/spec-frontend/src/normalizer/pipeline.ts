@@ -5,6 +5,11 @@ import {
   type DraftCanonicalSection,
   type DraftProseBlock,
 } from "@omega/contracts";
+import {
+  canonicalPointerToRaw,
+  nearestSourceLocation,
+} from "../sourcemap/build-source-map.js";
+import { inspectJsonModel, modelDiagnostic } from "../validation/json-model.js";
 import type {
   RawArtifactSpec,
   RawSection,
@@ -30,6 +35,19 @@ export function normalizeRawSpec(
   raw: RawArtifactSpec,
   context: NormalizationContext = {},
 ): NormalizationResult {
+  const inputIssue = inspectJsonModel(raw);
+  if (inputIssue)
+    return {
+      ok: false,
+      diagnostics: [
+        modelDiagnostic(
+          inputIssue,
+          "normalize",
+          "OMEGA-NORMALIZE",
+          context.sourceMap,
+        ),
+      ],
+    };
   const diagnostics: Diagnostic[] = [];
   function section(value: RawSection, path: string): DraftCanonicalSection {
     const intent = defaultSectionIntent(value);
@@ -76,7 +94,22 @@ export function normalizeRawSpec(
       ),
     },
   };
-  return diagnostics.length
-    ? { ok: false, diagnostics }
-    : { ok: true, value, diagnostics };
+  if (diagnostics.length) return { ok: false, diagnostics };
+  // One budget over the full emitted draft: sections, content, RichText and
+  // their arrays all share ancestry. Generated descendants map to the scalar.
+  const issue = inspectJsonModel(value);
+  if (issue) {
+    const path = canonicalPointerToRaw(issue.path, raw);
+    const location = nearestSourceLocation(path, context.sourceMap);
+    const diagnostic = modelDiagnostic(
+      { ...issue, path },
+      "normalize",
+      "OMEGA-NORMALIZE",
+    );
+    return {
+      ok: false,
+      diagnostics: [{ ...diagnostic, ...(location ? { location } : {}) }],
+    };
+  }
+  return { ok: true, value, diagnostics };
 }

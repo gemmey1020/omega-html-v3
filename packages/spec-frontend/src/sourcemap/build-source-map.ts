@@ -4,23 +4,15 @@ import type {
   SourceMap,
   SourceMapEntry,
 } from "@omega/contracts";
+import { CanonicalizationError } from "../canonical/error.js";
+import { inspectJsonModel } from "../validation/json-model.js";
 import type {
   RawArtifactSpec,
   RawSection,
 } from "../validation/validate-raw.js";
+import { nearestSourceLocation } from "./source-location.js";
 
-/** Missing/synthesized fields inherit the nearest authored parent, never coordinates invented inside prose. */
-export function nearestSourceLocation(path: string, sourceMap?: SourceMap) {
-  let current = path;
-  while (true) {
-    const location = sourceMap?.entries.find(
-      (entry) => entry.path === current,
-    )?.location;
-    if (location) return location;
-    if (!current) return undefined;
-    current = current.slice(0, current.lastIndexOf("/"));
-  }
-}
+export { nearestSourceLocation } from "./source-location.js";
 
 /** Canonical pointer -> Raw pointer, including body insertion at every section depth. */
 export function canonicalPointerToRaw(
@@ -70,6 +62,9 @@ export function buildSourceMap(
   canonical: CanonicalContract,
   rawSourceMap: SourceMap,
 ): SourceMap {
+  const issue = inspectJsonModel(canonical);
+  if (issue)
+    throw new CanonicalizationError(issue.path, issue.message, issue.reason);
   const entries: SourceMapEntry[] = [];
   function visit(value: unknown, path: string) {
     const location = nearestSourceLocation(

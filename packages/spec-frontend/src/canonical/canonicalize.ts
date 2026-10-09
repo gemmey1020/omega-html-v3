@@ -6,16 +6,11 @@ import type {
 } from "@omega/contracts";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import { nearestSourceLocation } from "../sourcemap/build-source-map.js";
+import { inspectJsonModel } from "../validation/json-model.js";
 
-export class CanonicalizationError extends TypeError {
-  constructor(
-    readonly path: string,
-    message: string,
-  ) {
-    super(message);
-    this.name = "CanonicalizationError";
-  }
-}
+import { CanonicalizationError } from "./error.js";
+
+export { CanonicalizationError } from "./error.js";
 
 function child(path: string, key: string): string {
   return `${path}/${key.replaceAll("~", "~0").replaceAll("/", "~1")}`;
@@ -23,87 +18,30 @@ function child(path: string, key: string): string {
 
 /** RFC 8785: no NFC; ECMAScript primitives, explicit UTF-16 property order. */
 export function canonicalizeJson(value: unknown): string {
-  const ancestors = new Set<object>();
-  function fail(path: string, message: string): never {
-    throw new CanonicalizationError(path, message);
-  }
-  function string(value: string, path: string): string {
-    for (let i = 0; i < value.length; i++) {
-      const point = value.codePointAt(i) ?? 0;
-      if ((point >= 0xfdd0 && point <= 0xfdef) || (point & 0xffff) >= 0xfffe)
-        fail(path, "I-JSON strings must not contain Unicode noncharacters.");
-      const unit = value.charCodeAt(i);
-      if (unit >= 0xd800 && unit <= 0xdbff) {
-        const low = value.charCodeAt(++i);
-        if (!(low >= 0xdc00 && low <= 0xdfff))
-          fail(path, "JSON strings must not contain lone surrogates.");
-      } else if (unit >= 0xdc00 && unit <= 0xdfff)
-        fail(path, "JSON strings must not contain lone surrogates.");
-    }
-    return JSON.stringify(value);
-  }
-  function serialize(value: unknown, path: string): string {
-    if (value === null) return "null";
-    if (typeof value === "string") return string(value, path);
-    if (typeof value === "boolean") return value ? "true" : "false";
-    if (typeof value === "number") {
-      if (!Number.isFinite(value)) fail(path, "JSON numbers must be finite.");
-      // Includes finite integral IEEE doubles beyond Raw authoring's safe range.
-      return JSON.stringify(value);
-    }
-    if (typeof value !== "object")
-      fail(path, "Value is outside the JSON model.");
-    if (ancestors.has(value)) fail(path, "Cyclic values are not JSON.");
-    const array = Array.isArray(value);
-    const prototype: unknown = Object.getPrototypeOf(value);
-    if (
-      array
-        ? prototype !== Array.prototype
-        : prototype !== Object.prototype && prototype !== null
-    )
-      fail(path, "Only plain JSON objects and arrays are supported.");
+  const issue = inspectJsonModel(value);
+  if (issue)
+    throw new CanonicalizationError(issue.path, issue.message, issue.reason);
+  // Preflight has bounded and admitted the complete model. Descriptor reads
+  // preserve the no-getter/toJSON policy during emission too.
+  function serialize(value: unknown): string {
+    if (value === null || typeof value !== "object")
+      return JSON.stringify(value) as string;
     const descriptors = Object.getOwnPropertyDescriptors(value);
-    for (const key of Reflect.ownKeys(value)) {
-      if (array && key === "length") continue;
-      if (typeof key !== "string")
-        fail(path, "Symbol properties are not JSON.");
-      const descriptor = descriptors[key];
-      if (!descriptor?.enumerable || !("value" in descriptor))
-        fail(
-          child(path, key),
-          "JSON properties must be enumerable data values.",
-        );
-      if (
-        array &&
-        (!/^(0|[1-9][0-9]*)$/.test(key) || Number(key) >= value.length)
+    if (Array.isArray(value)) {
+      const elements: string[] = [];
+      for (let i = 0; i < value.length; i++)
+        elements.push(serialize(descriptors[String(i)]?.value));
+      return `[${elements.join(",")}]`;
+    }
+    // Emit directly: rebuilding an object reorders integer-looking keys in JS.
+    return `{${Object.keys(descriptors)
+      .sort()
+      .map(
+        (key) => `${JSON.stringify(key)}:${serialize(descriptors[key]?.value)}`,
       )
-        fail(child(path, key), "Array properties must be element indices.");
-    }
-    ancestors.add(value);
-    try {
-      if (array) {
-        const elements: string[] = [];
-        for (let i = 0; i < value.length; i++) {
-          const descriptor = descriptors[String(i)];
-          if (!descriptor)
-            fail(child(path, String(i)), "Sparse arrays are not JSON.");
-          elements.push(serialize(descriptor.value, child(path, String(i))));
-        }
-        return `[${elements.join(",")}]`;
-      }
-      // Emit directly: rebuilding an object reorders integer-looking keys in JS.
-      return `{${Object.keys(descriptors)
-        .sort()
-        .map(
-          (key) =>
-            `${string(key, child(path, key))}:${serialize(descriptors[key]?.value, child(path, key))}`,
-        )
-        .join(",")}}`;
-    } finally {
-      ancestors.delete(value);
-    }
+      .join(",")}}`;
   }
-  return serialize(value, "");
+  return serialize(value);
 }
 
 const ajv = new Ajv2020({
@@ -145,7 +83,10 @@ export function validateCanonicalContract(
       ok: false,
       diagnostics: [
         {
-          code: "OMEGA-CANONICAL-JSON-MODEL",
+          code:
+            error.reason === "depth"
+              ? "OMEGA-CANONICAL-DEPTH"
+              : "OMEGA-CANONICAL-JSON-MODEL",
           severity: "ERROR",
           stage: "canonical-validation",
           path: error.path,

@@ -7,6 +7,11 @@ import {
   type SourceMap,
 } from "@omega/contracts";
 import { type Node, Parser } from "commonmark";
+import {
+  inspectJsonModel,
+  MAX_STRUCTURAL_DEPTH,
+  modelDiagnostic,
+} from "../validation/json-model.js";
 
 export interface NormalizationContext {
   readonly sourceMap?: SourceMap;
@@ -56,6 +61,52 @@ export function normalizeRichText(
 ): TextNormalizationResult {
   const ast = new Parser({ smart: false, time: false }).parse(source);
   const diagnostics: Diagnostic[] = [];
+  function depthFailure(
+    code: string,
+    message: string,
+    node?: Node,
+  ): TextNormalizationResult {
+    const location = locationFor(path, context.sourceMap);
+    let positioned: Node | null = node ?? null;
+    while (positioned && !positioned.sourcepos) positioned = positioned.parent;
+    const start = positioned?.sourcepos?.[0];
+    return {
+      ok: false,
+      diagnostics: [
+        {
+          code,
+          severity: "ERROR",
+          stage: "normalize",
+          path,
+          message,
+          context: {
+            maxDepth: MAX_STRUCTURAL_DEPTH,
+            depth: MAX_STRUCTURAL_DEPTH + 1,
+            ...(node ? { nodeType: node.type } : {}),
+            ...(start
+              ? { markdownLine: start[0], markdownColumn: start[1] }
+              : {}),
+          },
+          ...(location ? { location } : {}),
+        },
+      ],
+    };
+  }
+  // CommonMark's pinned parser uses iterative block/inline walks. Inspect the
+  // complete parsed AST (document=1, every child adds1) before our conversion.
+  const stack = [{ node: ast, depth: 1 }];
+  while (stack.length) {
+    const entry = stack.pop();
+    if (!entry) break;
+    if (entry.depth > MAX_STRUCTURAL_DEPTH)
+      return depthFailure(
+        "OMEGA-NORMALIZE-MARKDOWN-DEPTH",
+        `CommonMark AST node depth exceeds ${MAX_STRUCTURAL_DEPTH}.`,
+        entry.node,
+      );
+    for (let child = entry.node.lastChild; child; child = child.prev)
+      stack.push({ node: child, depth: entry.depth + 1 });
+  }
   function reject(node: Node, code = "OMEGA-NORMALIZE-UNSUPPORTED-NODE") {
     // Inline nodes have no sourcepos; report containing block position only.
     let positioned: Node | null = node;
@@ -152,15 +203,26 @@ export function normalizeRichText(
     }
   }
   const blocks = children(ast).flatMap(block);
-  return diagnostics.length
-    ? { ok: false, diagnostics }
-    : {
-        ok: true,
-        value: {
-          dialect: "commonmark",
-          dialectVersion: COMMONMARK_VERSION,
-          blocks,
-        },
-        diagnostics,
-      };
+  if (diagnostics.length) return { ok: false, diagnostics };
+  const value: RichText = {
+    dialect: "commonmark",
+    dialectVersion: COMMONMARK_VERSION,
+    blocks,
+  };
+  // AST nodes become JSON object/array containers. A standalone RichText tree
+  // has its own JSON root; the pipeline separately checks composed ancestry.
+  const issue = inspectJsonModel(value);
+  if (issue)
+    return {
+      ok: false,
+      diagnostics: [
+        modelDiagnostic(
+          { ...issue, path },
+          "normalize",
+          "OMEGA-NORMALIZE",
+          context.sourceMap,
+        ),
+      ],
+    };
+  return { ok: true, value, diagnostics };
 }

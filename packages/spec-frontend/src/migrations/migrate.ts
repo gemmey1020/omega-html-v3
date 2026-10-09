@@ -129,13 +129,17 @@ export function migrateRawSpec(
     // Descriptor-based serializer rejects accessors/toJSON without invoking them.
     text = `${canonicalizeJson(output)}\n`;
   } catch (cause) {
+    if (!(cause instanceof CanonicalizationError)) throw cause;
     return failure([
       {
-        code: "OMEGA-MIGRATION-JSON-MODEL",
+        code:
+          cause.reason === "depth"
+            ? "OMEGA-MIGRATION-DEPTH"
+            : "OMEGA-MIGRATION-JSON-MODEL",
         severity: "ERROR",
         stage: "migration",
         message: "Migration adapter output must use the strict JSON model.",
-        ...(cause instanceof CanonicalizationError ? { path: cause.path } : {}),
+        path: cause.path,
         context: { adapterId: adapter.id },
       },
     ]);

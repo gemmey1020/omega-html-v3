@@ -7,6 +7,7 @@ import type {
 } from "@omega/contracts";
 import { RAW_SCHEMA_VERSION } from "@omega/contracts";
 import { Ajv2020, type ErrorObject } from "ajv/dist/2020.js";
+import { inspectJsonModel, modelDiagnostic } from "./json-model.js";
 
 export interface RawProseBlock {
   readonly id?: string;
@@ -170,6 +171,14 @@ export function validateRawSpec(
   value: JsonValue,
   sourceMap: SourceMap,
 ): ValidationResult {
+  const issue = inspectJsonModel(value);
+  if (issue)
+    return {
+      ok: false,
+      diagnostics: [
+        modelDiagnostic(issue, "raw-validation", "OMEGA-SCHEMA", sourceMap),
+      ],
+    };
   const locations = new Map(
     sourceMap.entries.map((entry) => [entry.path, entry.location]),
   );

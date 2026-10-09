@@ -18,6 +18,7 @@ import {
   type ParsedNode,
   Parser,
 } from "yaml";
+import { MAX_STRUCTURAL_DEPTH } from "../validation/json-model.js";
 import {
   invalidUnicodeOffset,
   isJsonModelTag,
@@ -122,13 +123,14 @@ export function parseOmegaYaml(
   // retain independent structural diagnostics rather than losing them here.
   let invalid = invalidUnicodeOffset(text);
   while (invalid !== undefined) {
+    const width = (text.codePointAt(invalid) ?? 0) > 0xffff ? 2 : 1;
     error(
       "OMEGA-PARSE-UNICODE",
       "Source contains invalid Unicode text.",
       invalid,
-      invalid + 1,
+      invalid + width,
     );
-    invalid = invalidUnicodeOffset(text, invalid + 1);
+    invalid = invalidUnicodeOffset(text, invalid + width);
   }
   for (let offset = 0; offset < text.length; offset++) {
     const code = text.charCodeAt(offset);
@@ -181,6 +183,49 @@ export function parseOmegaYaml(
     ranges.push({ start: node.range[0], end: node.range[1], path });
     if (includeEntry)
       entries.push({ path, location: location(node.range[0], node.range[1]) });
+  }
+  // YAML collections have the same container counting as the JSON DTO.
+  // Preflight before recursive conversion/freeze; retain library diagnostics.
+  function withinDepth(root: ParsedNode | null): boolean {
+    const stack = [{ node: root, path: "", depth: 0 }];
+    while (stack.length) {
+      const entry = stack.pop();
+      if (!entry?.node) continue;
+      const { node, path, depth } = entry;
+      const nextDepth = depth + (isMap(node) || isSeq(node) ? 1 : 0);
+      if (nextDepth > MAX_STRUCTURAL_DEPTH) {
+        record(node, path, false);
+        error(
+          "OMEGA-PARSE-DEPTH",
+          `JSON container depth exceeds ${MAX_STRUCTURAL_DEPTH}.`,
+          node.range[0],
+          node.range[1],
+          path,
+        );
+        return false;
+      }
+      if (isSeq(node)) {
+        for (let i = node.items.length - 1; i >= 0; i--)
+          stack.push({
+            node: node.items[i] ?? null,
+            path: `${path}/${i}`,
+            depth: nextDepth,
+          });
+      } else if (isMap(node)) {
+        for (let i = node.items.length - 1; i >= 0; i--) {
+          const pair = node.items[i];
+          if (!pair) continue;
+          const key = pair.key;
+          const childPath =
+            isScalar(key) && typeof key.value === "string"
+              ? `${path}/${key.value.replaceAll("~", "~0").replaceAll("/", "~1")}`
+              : path;
+          stack.push({ node: pair.value, path: childPath, depth: nextDepth });
+          stack.push({ node: key, path: childPath, depth: nextDepth });
+        }
+      }
+    }
+    return true;
   }
   function convert(
     node: ParsedNode | null,
@@ -327,7 +372,9 @@ export function parseOmegaYaml(
     );
     return null;
   }
-  const values = documents.map((document) => convert(document.contents, ""));
+  const values = documents.map((document) =>
+    withinDepth(document.contents) ? convert(document.contents, "") : null,
+  );
   // Document diagnostics are retained alongside independent profile violations.
   for (const document of documents) {
     for (const issue of [...document.errors, ...document.warnings]) {

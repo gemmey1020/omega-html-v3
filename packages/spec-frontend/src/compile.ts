@@ -80,7 +80,10 @@ export function compileRawSpec(request: CompileRequest): CompileResult {
     const location = nearestSourceLocation(error.path, sourceMap);
     return failure([
       {
-        code: "OMEGA-SERIALIZE-JSON-MODEL",
+        code:
+          error.reason === "depth"
+            ? "OMEGA-SERIALIZE-DEPTH"
+            : "OMEGA-SERIALIZE-JSON-MODEL",
         severity: "ERROR",
         stage: "serialize",
         path: error.path,
@@ -90,6 +93,8 @@ export function compileRawSpec(request: CompileRequest): CompileResult {
     ]);
   }
   const bytes = new TextEncoder().encode(canonicalString);
+  // Canonical validation admitted at most128 containers; this owned result
+  // adds one shallow envelope. Clone/freeze cannot see unchecked prose depth.
   // Clone before freezing: ID output shares protected rich-text/sidecar objects
   // with previous stages. Never freeze caller input or earlier-stage aliases.
   return freezeOwned(

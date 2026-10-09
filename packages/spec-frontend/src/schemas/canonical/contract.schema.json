@@ -59,13 +59,28 @@
               "const": "emphasis"
             },
             "children": {
-              "type": "array",
-              "items": {
-                "$ref": "#/$defs/inline"
-              }
+              "type": "array"
             }
           },
-          "required": ["kind", "children"]
+          "required": ["kind", "children"],
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "emphasis"
+              }
+            },
+            "required": ["kind"]
+          },
+          "then": {
+            "properties": {
+              "children": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/inline"
+                }
+              }
+            }
+          }
         },
         {
           "type": "object",
@@ -75,13 +90,28 @@
               "const": "strong"
             },
             "children": {
-              "type": "array",
-              "items": {
-                "$ref": "#/$defs/inline"
-              }
+              "type": "array"
             }
           },
-          "required": ["kind", "children"]
+          "required": ["kind", "children"],
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "strong"
+              }
+            },
+            "required": ["kind"]
+          },
+          "then": {
+            "properties": {
+              "children": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/inline"
+                }
+              }
+            }
+          }
         },
         {
           "type": "object",
@@ -97,13 +127,28 @@
               "type": ["string", "null"]
             },
             "children": {
-              "type": "array",
-              "items": {
-                "$ref": "#/$defs/inline"
-              }
+              "type": "array"
             }
           },
-          "required": ["kind", "destination", "title", "children"]
+          "required": ["kind", "destination", "title", "children"],
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "link"
+              }
+            },
+            "required": ["kind"]
+          },
+          "then": {
+            "properties": {
+              "children": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/inline"
+                }
+              }
+            }
+          }
         },
         {
           "type": "object",
@@ -150,13 +195,28 @@
               "const": "paragraph"
             },
             "children": {
-              "type": "array",
-              "items": {
-                "$ref": "#/$defs/inline"
-              }
+              "type": "array"
             }
           },
-          "required": ["kind", "children"]
+          "required": ["kind", "children"],
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "paragraph"
+              }
+            },
+            "required": ["kind"]
+          },
+          "then": {
+            "properties": {
+              "children": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/inline"
+                }
+              }
+            }
+          }
         },
         {
           "type": "object",
@@ -166,13 +226,28 @@
               "const": "blockquote"
             },
             "blocks": {
-              "type": "array",
-              "items": {
-                "$ref": "#/$defs/block"
-              }
+              "type": "array"
             }
           },
-          "required": ["kind", "blocks"]
+          "required": ["kind", "blocks"],
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "blockquote"
+              }
+            },
+            "required": ["kind"]
+          },
+          "then": {
+            "properties": {
+              "blocks": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/block"
+                }
+              }
+            }
+          }
         },
         {
           "type": "object",
@@ -185,13 +260,28 @@
               "type": "boolean"
             },
             "items": {
-              "type": "array",
-              "items": {
-                "$ref": "#/$defs/listItem"
-              }
+              "type": "array"
             }
           },
-          "required": ["kind", "tight", "items"]
+          "required": ["kind", "tight", "items"],
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "bullet-list"
+              }
+            },
+            "required": ["kind"]
+          },
+          "then": {
+            "properties": {
+              "items": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/listItem"
+                }
+              }
+            }
+          }
         },
         {
           "type": "object",
@@ -209,13 +299,28 @@
               "type": "boolean"
             },
             "items": {
-              "type": "array",
-              "items": {
-                "$ref": "#/$defs/listItem"
-              }
+              "type": "array"
             }
           },
-          "required": ["kind", "start", "tight", "items"]
+          "required": ["kind", "start", "tight", "items"],
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "ordered-list"
+              }
+            },
+            "required": ["kind"]
+          },
+          "then": {
+            "properties": {
+              "items": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/listItem"
+                }
+              }
+            }
+          }
         },
         {
           "type": "object",
