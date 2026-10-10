@@ -193,17 +193,15 @@ test.each([
     expect(telemetryIgnored).toBe(true);
     expect(calls).toEqual([]);
     expect(result).toMatchObject({
-      status: cancelled ? "cancelled" : "failed",
+      status: "failed",
+      failureClass: "internal",
       stage: "commit",
     });
-    if (!cancelled) expect(result).toHaveProperty("failureClass", "internal");
     expect(result).not.toHaveProperty("publication");
     expect(events.filter((event) => event.name === "stage.progress")).toEqual(
       [],
     );
-    expect(events.at(-1)?.name).toBe(
-      cancelled ? "build.cancelled" : "build.failed",
-    );
+    expect(events.at(-1)?.name).toBe("build.failed");
     expect(events.at(-1)).not.toHaveProperty("publication");
   },
 );
@@ -324,7 +322,7 @@ test.each(LIFECYCLE_STAGES)(
   },
 );
 
-test("active_renderer_receives_signal_and_abort_exception_is_cancelled", async () => {
+test("active_renderer_receives_signal_and_unrelated_error_remains_internal", async () => {
   const abort = new AbortController();
   const events: BuildEvent[] = [];
   let entered!: () => void;
@@ -357,12 +355,19 @@ test("active_renderer_receives_signal_and_abort_exception_is_cancelled", async (
   abort.abort();
   const result = await pending;
   expect(signal).toBe(abort.signal);
-  expect(result).toMatchObject({ status: "cancelled", stage: "render" });
-  expect(result.diagnostics).toEqual([]);
+  expect(result).toMatchObject({
+    status: "failed",
+    failureClass: "internal",
+    stage: "render",
+  });
+  expect(result.diagnostics).toContainEqual(
+    expect.objectContaining({ code: "OMEGA-ENGINE-INTERNAL" }),
+  );
+  expect(events.at(-1)?.name).toBe("build.failed");
   expect(JSON.stringify(events)).not.toContain("/private/path");
 });
 
-test("capability_provider_is_cooperatively_cancellable_preflight_work", async () => {
+test("capability_provider_unrelated_error_after_abort_remains_internal", async () => {
   const abort = new AbortController();
   const calls: string[] = [];
   let entered!: () => void;
@@ -393,7 +398,8 @@ test("capability_provider_is_cooperatively_cancellable_preflight_work", async ()
   await ready;
   abort.abort();
   expect(await pending).toMatchObject({
-    status: "cancelled",
+    status: "failed",
+    failureClass: "internal",
     stage: "preflight",
   });
   expect(calls).toEqual([]);
@@ -594,7 +600,7 @@ test("non_commit_stage_cannot_publish_or_seal_cancellation", async () => {
   expect(calls).toEqual([]);
 });
 
-test("throwing_publication_does_not_seal_cancellation", async () => {
+test("throwing_publication_after_abort_remains_internal", async () => {
   const abort = new AbortController();
   const result = await new OmegaEngine({
     ...shell([]),
@@ -609,7 +615,11 @@ test("throwing_publication_does_not_seal_cancellation", async () => {
     { operation: "build", source },
     { cancellationToken: { signal: abort.signal } },
   );
-  expect(result).toMatchObject({ status: "cancelled", stage: "commit" });
+  expect(result).toMatchObject({
+    status: "failed",
+    failureClass: "internal",
+    stage: "commit",
+  });
 });
 
 test("observer_exceptions_do_not_change_execution", async () => {

@@ -230,10 +230,12 @@ class Attempt<O extends EngineOperation> {
       return result;
     } catch (error) {
       active = false;
-      const status = this.cancellationRequested ? "cancelled" : "failed";
+      const status =
+        error instanceof CancellationError && this.cancellationRequested
+          ? "cancelled"
+          : "failed";
       this.stages.push({ stage, status });
       this.events.emit({ name: "stage.completed", stage, status });
-      if (status === "cancelled") throw new CancellationError();
       throw error;
     } finally {
       active = false;
@@ -325,12 +327,13 @@ export class OmegaEngine {
       attempt.checkCancellation();
       result = await action(attempt);
       attempt.checkCancellation();
-    } catch {
+    } catch (error) {
       // Cancellation has its own terminal; unexplained thrown bugs stay internal.
       // Never expose exception text/stacks or host paths in diagnostics/events.
-      result = attempt.cancellationRequested
-        ? attempt.cancelled()
-        : attempt.internalFailure();
+      result =
+        error instanceof CancellationError && attempt.cancellationRequested
+          ? attempt.cancelled()
+          : attempt.internalFailure();
     }
     if (!attempt.publicationCommitted && this.adapters.disposeUncommitted) {
       try {

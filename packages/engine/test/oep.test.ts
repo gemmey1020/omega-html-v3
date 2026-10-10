@@ -629,6 +629,68 @@ test("capacity_keeps_cancel_and_shutdown_available_while_sessions_remain_bounded
   }
 }, 40000);
 
+test("malformed_shutdown_ids_cannot_cross_session_bound_and_valid_shutdown_keeps_final_slot", async () => {
+  const session = childSession();
+  try {
+    expect(
+      (
+        await session.send("bad-before-init", "omega.shutdown", {
+          invalid: true,
+        })
+      ).error?.code,
+    ).toBe(-32001);
+    expect(
+      (await session.send("before-init", "omega.shutdown", {})).error?.code,
+    ).toBe(-32001);
+    await initialize(session);
+    const limit = 4096;
+    expect(
+      session.frames.find((frame) => frame.id === "init")?.result,
+    ).toMatchObject({
+      limits: { sessionRequests: limit },
+    });
+    session.write(
+      `${Array.from({ length: limit - 5 }, (_, index) =>
+        JSON.stringify({
+          jsonrpc: "2.0",
+          id: `fill-${index}`,
+          method: "omega.unknown",
+        }),
+      ).join("\n")}\n`,
+    );
+    expect(
+      (await session.wait((frame) => frame.id === `fill-${limit - 6}`)).error
+        ?.code,
+    ).toBe(-32601);
+    expect(
+      (
+        await session.send("bad-at-cap-minus-one", "omega.shutdown", {
+          invalid: true,
+        })
+      ).error?.code,
+    ).toBe(-32602);
+    for (const id of ["bad-over-cap", "bad-over-cap", "another-bad-over-cap"])
+      expect(
+        (await session.send(id, "omega.shutdown", { invalid: true })).error
+          ?.code,
+      ).toBe(-32005);
+    expect(
+      (await session.send("ordinary-over-cap", "omega.capabilities")).error
+        ?.code,
+    ).toBe(-32005);
+    expect(
+      (await session.send("valid-final", "omega.shutdown", {})).result,
+    ).toEqual({ status: "shutdown" });
+    expect(await session.closed).toBe(0);
+    const captured = session.output();
+    expect(captured.stderr).toBe("");
+    expect(captured.stdout.trim().split("\n")).toHaveLength(limit + 4);
+    expect(session.frames.every((frame) => frame.jsonrpc === "2.0")).toBe(true);
+  } finally {
+    session.dispose();
+  }
+}, 40000);
+
 test("typed_client_receives_real_build_events_and_can_cancel_the_event_request_id", async () => {
   const { OepClient } = await import("../src/protocol/oep-client.js");
   const session = childSession();

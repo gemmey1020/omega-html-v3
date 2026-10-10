@@ -130,10 +130,16 @@ export function serveOep(
           -32004,
           "Request ID was already used in this session.",
         );
-      // Reserve one ID for shutdown so every full session retains an orderly exit.
+      const params = Object.hasOwn(value, "params") ? value.params : {};
+      // Only an initialized, valid shutdown can use the reserved final ID.
+      const finalShutdown =
+        value.method === "omega.shutdown" &&
+        initialized &&
+        record(params) &&
+        Object.keys(params).length === 0;
       if (
-        seen.size >= OEP_LIMITS.sessionRequests - 1 &&
-        value.method !== "omega.shutdown"
+        seen.size >= OEP_LIMITS.sessionRequests ||
+        (seen.size >= OEP_LIMITS.sessionRequests - 1 && !finalShutdown)
       )
         throw new OepError(
           -32005,
@@ -143,7 +149,6 @@ export function serveOep(
       if (!(OEP_METHODS as readonly string[]).includes(value.method))
         throw new OepError(-32601, "Unknown OEP method.");
       const method = value.method as OepMethod;
-      const params = Object.hasOwn(value, "params") ? value.params : {};
       if (!record(params))
         throw new OepError(-32602, "Invalid method parameters.");
       if (method === "omega.initialize") {

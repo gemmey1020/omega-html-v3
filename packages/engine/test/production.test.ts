@@ -12,12 +12,16 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { sha256 } from "@omega/spec-frontend";
 import { expect, test } from "vitest";
+import { exitCode } from "../../cli/src/main.js";
 import { createProductionEngine } from "../src/api/production-engine.js";
 import {
   admitOutput,
   preparePublication,
 } from "../src/lifecycle/atomic-commit.js";
-import { CancellationTokenSource } from "../src/lifecycle/cancellation.js";
+import {
+  CancellationTokenSource,
+  throwIfCancellationRequested,
+} from "../src/lifecycle/cancellation.js";
 import { evidence, verifyArtifact } from "../src/qa/artifact-gates.js";
 
 const source = {
@@ -114,6 +118,98 @@ test("real_production_evidence_binds_exact_bytes_and_prior_pair_survives_rejecti
         ),
       ).toEqual([]);
       expect(await readdir(join(out, ".omega-generations"))).toHaveLength(1);
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+}, 120000);
+
+test("real_verify_filesystem_error_after_abort_stays_internal_and_preserves_prior_pair", async () => {
+  const root = await mkdtemp(join(tmpdir(), "omega-engine-failure-class-"));
+  try {
+    const out = join(root, "dist");
+    const request = {
+      operation: "build" as const,
+      source,
+      settings: { outputDirectory: out, cache: "off" as const },
+    };
+    const prior = await createProductionEngine().build(request);
+    expect(prior.status).toBe("succeeded");
+    if (prior.status !== "succeeded") throw new Error(JSON.stringify(prior));
+    const html = await readFile(join(out, "current/artifact.html"));
+    const receipt = await readFile(join(out, "current/build-receipt.json"));
+
+    for (const mode of [
+      "filesystem",
+      "filesystem-after-abort",
+      "cancellation",
+    ] as const) {
+      const cancellation = new CancellationTokenSource();
+      const events: string[] = [];
+      let reachedVerify = false;
+      let filesystemCode: string | undefined;
+      const result = await createProductionEngine({
+        stages: {
+          verify: async (_input, context) => {
+            reachedVerify = true;
+            if (mode === "cancellation") {
+              cancellation.cancel();
+              throwIfCancellationRequested(context.cancellationToken);
+            }
+            try {
+              await readFile(join(root, "absent-private-input"));
+            } catch (error) {
+              filesystemCode = (error as NodeJS.ErrnoException).code;
+              if (mode === "filesystem-after-abort") cancellation.cancel();
+              throw error;
+            }
+            throw new Error("Expected a missing filesystem input");
+          },
+        },
+      }).build(request, {
+        cancellationToken: cancellation.token,
+        onEvent: (event) => events.push(event.name),
+      });
+      expect(reachedVerify).toBe(true);
+      expect(filesystemCode).toBe(
+        mode === "cancellation" ? undefined : "ENOENT",
+      );
+      expect(result.stages.at(-1)).toEqual({
+        stage: "verify",
+        status: mode === "cancellation" ? "cancelled" : "failed",
+      });
+      expect(
+        events.filter(
+          (name) => name.startsWith("build.") && name !== "build.started",
+        ),
+      ).toEqual([mode === "cancellation" ? "build.cancelled" : "build.failed"]);
+      if (mode === "cancellation") {
+        expect(result.status).toBe("cancelled");
+        expect(exitCode(result)).toBe(130);
+      } else {
+        expect(result).toMatchObject({
+          status: "failed",
+          failureClass: "internal",
+          stage: "verify",
+          diagnostics: [
+            expect.objectContaining({ code: "OMEGA-ENGINE-INTERNAL" }),
+          ],
+        });
+        expect(exitCode(result)).toBe(4);
+      }
+      expect(JSON.stringify(result)).not.toContain("absent-private-input");
+      expect(await readFile(join(out, "current/artifact.html"))).toEqual(html);
+      expect(await readFile(join(out, "current/build-receipt.json"))).toEqual(
+        receipt,
+      );
+      expect(await readdir(join(out, ".omega-generations"))).toHaveLength(1);
+      expect(
+        (await readdir(out)).filter(
+          (name) =>
+            name.startsWith(".omega-workspace") ||
+            name.startsWith(".omega-pointer"),
+        ),
+      ).toEqual([]);
     }
   } finally {
     await rm(root, { recursive: true, force: true });
