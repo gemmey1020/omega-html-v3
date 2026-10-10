@@ -7,6 +7,9 @@ export * from "./events/emitter.js";
 export * from "./events/events.js";
 export * from "./lifecycle/cancellation.js";
 export * from "./lifecycle/stages.js";
+export * from "./protocol/oep-client.js";
+export * from "./protocol/oep-server.js";
+export * from "./protocol/oep-types.js";
 export type {
   DecisionExplanation,
   GateEvidence,

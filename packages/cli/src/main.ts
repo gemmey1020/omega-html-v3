@@ -5,7 +5,11 @@ import type {
   ExecutionControl,
   ExecutionSettings,
 } from "@omega/engine";
-import { CancellationTokenSource, createProductionEngine } from "@omega/engine";
+import {
+  CancellationTokenSource,
+  createProductionEngine,
+  serveOep,
+} from "@omega/engine";
 import { build } from "./commands/build.js";
 import { capabilities } from "./commands/capabilities.js";
 import { explain } from "./commands/explain.js";
@@ -34,6 +38,8 @@ export function exitCode(result: EngineResult): number {
 }
 export async function main(args: readonly string[]): Promise<number> {
   const command = args[0];
+  if (command === "engine" && args.length === 2 && args[1] === "--stdio")
+    return serveOep(process.stdin, process.stdout, process.stderr);
   let sourcePath: string | undefined;
   let output: string | undefined;
   let targetVersion: string | undefined;

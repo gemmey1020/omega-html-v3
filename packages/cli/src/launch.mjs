@@ -48,7 +48,11 @@ try {
     failureClass: "internal",
     code: "OMEGA-CLI-STARTUP-INTERNAL",
   };
-  process.stdout.write(
+  const stdio =
+    process.argv.length === 4 &&
+    process.argv[2] === "engine" &&
+    process.argv[3] === "--stdio";
+  (stdio ? process.stderr : process.stdout).write(
     `${JSON.stringify(
       process.argv.includes("--events=jsonl")
         ? { type: "result", result }
