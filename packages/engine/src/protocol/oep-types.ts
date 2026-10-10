@@ -379,6 +379,10 @@ export class OepWriter {
   private queued = 0;
   private pending = new Set<Promise<void>>();
   private failed = false;
+  private guardingWriteError = false;
+  private readonly onOwedWriteError = () => {
+    // The write callback already reported this error to the owner, without exception text.
+  };
   constructor(
     private readonly output: Writable,
     private readonly onFailure: () => void,
@@ -404,6 +408,7 @@ export class OepWriter {
       this.queued -= bytes.length;
       this.pending.delete(completion);
       done();
+      if (error) this.guardOwedWriteError();
       if (error && !this.failed) {
         this.failed = true;
         this.onFailure();
@@ -414,6 +419,17 @@ export class OepWriter {
     } catch {
       finish(new Error("Protocol write failed."));
     }
+  }
+  private guardOwedWriteError(): void {
+    if (this.guardingWriteError) return;
+    this.guardingWriteError = true;
+    // Node emits the associated stream error after its failed write callback.
+    // The owner may reject/dispose immediately; this guard owns only that owed event.
+    this.output.on("error", this.onOwedWriteError);
+    setImmediate(() => {
+      this.output.off("error", this.onOwedWriteError);
+      this.guardingWriteError = false;
+    });
   }
   async drain(timeoutMs: number = OEP_LIMITS.outputDrainMs): Promise<boolean> {
     let timer: ReturnType<typeof setTimeout> | undefined;

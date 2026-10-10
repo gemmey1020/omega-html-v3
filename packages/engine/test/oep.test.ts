@@ -1,8 +1,10 @@
 import { spawn } from "node:child_process";
 import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { PassThrough, Writable } from "node:stream";
+import { pathToFileURL } from "node:url";
 import { expect, test } from "vitest";
 import type { BuildEvent, EngineResult, PlanResult } from "../src/index.js";
 
@@ -784,3 +786,139 @@ test("broken_stdout_peer_cancels_real_attempt_drains_owned_resources_and_exits_i
     await rm(root, { recursive: true, force: true });
   }
 }, 120000);
+
+test.each([
+  "callback-sync",
+  "callback-async",
+  "callback-no-autodestroy",
+  "dispose-before-failed-callback",
+  "dispose-before-success-callback",
+  "dispose-stalled-callback",
+  "explicit-output-error",
+  "explicit-input-error",
+])(
+  "client_write_error_lifecycle_does_not_crash_subprocess_%s",
+  async (mode) => {
+    const root = await mkdtemp(join(tmpdir(), "omega-oep-write-lifecycle-"));
+    try {
+      // Reuse the exact acquired launcher hooks, without executing its CLI main.
+      const launch = await readFile(launcher, "utf8");
+      const loader = launch
+        .slice(0, launch.indexOf("\ntry {\n  const { main }"))
+        .replace(/^#![^\n]*\n/, "")
+        .replace(
+          'from "rolldown/utils";',
+          `from ${JSON.stringify(pathToFileURL(createRequire(launcher).resolve("rolldown/utils")).href)};`,
+        )
+        .replace(
+          'new URL("../../../packages/", import.meta.url).href',
+          JSON.stringify(
+            `${pathToFileURL(resolve(import.meta.dirname, "../../")).href}/`,
+          ),
+        );
+      const probe = join(root, "write-lifecycle.mjs");
+      await writeFile(
+        probe,
+        `${loader}
+import { PassThrough, Writable } from "node:stream";
+const { OepClient } = await import(${JSON.stringify(pathToFileURL(resolve(import.meta.dirname, "../src/protocol/oep-client.ts")).href)});
+const mode = ${JSON.stringify(mode)};
+const input = new PassThrough();
+let callbackFinished = false;
+const output = new Writable({
+ autoDestroy: mode !== "callback-no-autodestroy",
+ write(chunk, encoding, callback) {
+  const finish = () => {
+   callbackFinished = true;
+   callback(mode.includes("success") || mode.startsWith("explicit-") ? undefined : new Error("specific failed write"));
+  };
+  if (mode === "dispose-stalled-callback") return;
+  if (mode === "callback-sync" || mode === "callback-no-autodestroy") finish();
+  else setTimeout(finish, 10);
+ },
+});
+const client = new OepClient(input, output);
+const beforeErrorListeners = output.listenerCount("error");
+let rejected = false;
+let rejectionMessage;
+const settled = client.request("omega.capabilities", {}).then(
+ () => { throw new Error("Unexpected successful request"); },
+ error => { rejected = true; rejectionMessage = error.message; },
+);
+if (mode.startsWith("dispose-")) client.dispose();
+if (mode === "explicit-output-error") output.destroy(new Error("specific output error"));
+if (mode === "explicit-input-error") input.destroy(new Error("specific input error"));
+await settled;
+const rejectedBeforeCallback = rejected && !callbackFinished;
+await new Promise(resolve => setTimeout(resolve, 30));
+const listenerCounts = {
+ inputData: input.listenerCount("data"), inputEnd: input.listenerCount("end"),
+ inputError: input.listenerCount("error"), inputClose: input.listenerCount("close"),
+ outputError: output.listenerCount("error"), outputClose: output.listenerCount("close"),
+};
+const callerOwnership = {
+ inputDestroyed: input.destroyed, outputDestroyed: output.destroyed,
+ outputWritableEnded: output.writableEnded,
+};
+console.log(JSON.stringify({ mode, beforeErrorListeners, rejected, rejectedBeforeCallback, rejectionMessage, listenerCounts, callerOwnership }));
+input.destroy(); output.destroy();
+`,
+      );
+      const observed = await new Promise<{
+        code: number | null;
+        stdout: string;
+        stderr: string;
+      }>((done) => {
+        const child = spawn(process.execPath, [probe], {
+          cwd: resolve(import.meta.dirname, "../../.."),
+          stdio: ["ignore", "pipe", "pipe"],
+        });
+        let stdout = "";
+        let stderr = "";
+        child.stdout.on("data", (bytes: Buffer) => {
+          stdout += bytes.toString();
+        });
+        child.stderr.on("data", (bytes: Buffer) => {
+          stderr += bytes.toString();
+        });
+        child.on("close", (code) => done({ code, stdout, stderr }));
+      });
+      if (process.env.OMEGA_OEP_FIX_EVIDENCE_DIRECTORY)
+        await writeFile(
+          join(process.env.OMEGA_OEP_FIX_EVIDENCE_DIRECTORY, `${mode}.json`),
+          `${JSON.stringify(observed, null, 2)}\n`,
+        );
+      expect(observed.code, observed.stderr).toBe(0);
+      expect(observed.stderr).toBe("");
+      const result = JSON.parse(observed.stdout);
+      expect(result).toMatchObject({
+        mode,
+        beforeErrorListeners: 1,
+        rejected: true,
+        listenerCounts: {
+          inputData: 0,
+          inputEnd: 0,
+          inputError: 0,
+          inputClose: 0,
+          outputError: 0,
+          outputClose: 0,
+        },
+      });
+      if (mode.startsWith("dispose-"))
+        expect(result.rejectedBeforeCallback).toBe(true);
+      if (
+        mode === "dispose-before-success-callback" ||
+        mode === "dispose-stalled-callback"
+      )
+        expect(result.callerOwnership).toEqual({
+          inputDestroyed: false,
+          outputDestroyed: false,
+          outputWritableEnded: false,
+        });
+      expect(result.rejectionMessage).not.toContain("specific");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  },
+  40000,
+);
